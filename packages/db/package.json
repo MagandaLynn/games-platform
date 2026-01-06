@@ -1,0 +1,19 @@
+{
+  "name": "@btd/db",
+  "version": "0.0.0",
+  "private": true,
+    "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
+  "scripts": {
+    "prisma": "prisma",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "prisma": "^7.2.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.2.0"
+  }
+}
