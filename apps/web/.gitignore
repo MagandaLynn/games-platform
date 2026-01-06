@@ -1,41 +1,69 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# ================================
+# Dependencies
+# ================================
+node_modules
+.pnpm-store
+.pnpm-debug.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# ================================
+# Build outputs
+# ================================
+dist
+build
+out
 
-# vercel
+# Next.js
+.next
 .vercel
 
-# typescript
+# Turbopack / Next cache
+.turbo
+
+# ================================
+# Environment files (never commit)
+# ================================
+.env
+.env.*
+!.env.example
+
+# ================================
+# Prisma
+# ================================
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Prisma generated client (optional — see note below)
+# Uncomment if you ever run into version drift issues
+# node_modules/.prisma
+
+# ================================
+# Logs
+# ================================
+logs
+*.log
+
+# ================================
+# OS / Editor junk
+# ================================
+.DS_Store
+Thumbs.db
+
+# VS Code (optional — I recommend committing settings.json)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ================================
+# Test coverage
+# ================================
+coverage
+
+# ================================
+# Misc
+# ================================
 *.tsbuildinfo
-next-env.d.ts
