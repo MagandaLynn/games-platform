@@ -1,1 +1,69 @@
+# ================================
+# Dependencies
+# ================================
 node_modules
+.pnpm-store
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ================================
+# Build outputs
+# ================================
+dist
+build
+out
+
+# Next.js
+.next
+.vercel
+
+# Turbopack / Next cache
+.turbo
+
+# ================================
+# Environment files (never commit)
+# ================================
+.env
+.env.*
+!.env.example
+
+# ================================
+# Prisma
+# ================================
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Prisma generated client (optional — see note below)
+# Uncomment if you ever run into version drift issues
+# node_modules/.prisma
+
+# ================================
+# Logs
+# ================================
+logs
+*.log
+
+# ================================
+# OS / Editor junk
+# ================================
+.DS_Store
+Thumbs.db
+
+# VS Code (optional — I recommend committing settings.json)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ================================
+# Test coverage
+# ================================
+coverage
+
+# ================================
+# Misc
+# ================================
+*.tsbuildinfo
