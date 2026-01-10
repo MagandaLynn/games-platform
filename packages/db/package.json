@@ -1,5 +1,5 @@
 {
-  "name": "@btd/db",
+  "name": "@wurple/db",
   "version": "0.0.0",
   "private": true,
     "prisma": {

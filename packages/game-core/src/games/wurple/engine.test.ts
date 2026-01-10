@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyGuess, createInitialState, getResult, isGameOver } from "./engine";
+import { applyGuess, createInitialState, getInternalResult, isGameOver } from "./engine";
 
 describe("hex wurple engine", () => {
   it("deterministically selects the same solution for the same seed", () => {
@@ -29,7 +29,7 @@ describe("hex wurple engine", () => {
     const s0 = createInitialState("2026-01-06");
     const s1 = applyGuess(s0, s0.solution);
     expect(isGameOver(s1)).toBe(true);
-    expect(getResult(s1).status).toBe("won");
+    expect(getInternalResult(s1).status).toBe("won");
   });
 
   it("loss: result is lost after max guesses without solution", () => {
@@ -44,7 +44,7 @@ describe("hex wurple engine", () => {
     }
 
     expect(isGameOver(s)).toBe(true);
-    const res = getResult(s);
+    const res = getInternalResult(s);
     expect(res.status).toBe("lost");
   });
 });

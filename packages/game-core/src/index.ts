@@ -1,6 +1,9 @@
-import { createInitialState } from "@btd/game-core";
+// packages/game-core/src/index.ts
+export * as games from "./games";
 
-const state = createInitialState("2026-01-06");
+// optional: shared utils/types you want public later
+// export * from "./shared/types";
+import { games } from "@playseed/game-core";
+// replace hardcoded date with seed
+games.wurple.createInitialState("2026-01-06");
 
-export * from "./wurple/types";
-export * from "./wurple/engine";

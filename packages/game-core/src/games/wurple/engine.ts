@@ -1,4 +1,4 @@
-import type { GameResult, GameState } from "./types";
+import type { GameState, InternalGameResult } from "./types";
 import { selectDailyHexSolution } from "./selectSolution";
 
 function isValidHexGuess(s: string): boolean {
@@ -35,6 +35,10 @@ export function applyGuess(state: GameState, guess: string): GameState {
     guesses: [...state.guesses, normalized],
   };
 }
+export function isWin(state: GameState): boolean {
+  const last = state.guesses[state.guesses.length - 1];
+  return !!last && last === state.solution;
+}
 
 export function isGameOver(state: GameState): boolean {
   const last = state.guesses[state.guesses.length - 1];
@@ -42,33 +46,10 @@ export function isGameOver(state: GameState): boolean {
   return state.guesses.length >= state.maxGuesses;
 }
 
-export function getResult(state: GameState): GameResult {
-  const last = state.guesses[state.guesses.length - 1];
+export function getInternalResult(state: GameState): InternalGameResult {
+  const guessesUsed = state.guesses.length;
 
-  if (last === state.solution) {
-    return { status: "won", guessesUsed: state.guesses.length };
-  }
-
-  if (state.guesses.length >= state.maxGuesses) {
-    return { status: "lost", solution: state.solution };
-  }
-
-  return { status: "playing" };
-}
-export type PublicDaily = {
-  seed: string;
-  maxGuesses: number;
-  guessCount: number;
-  isOver: boolean;
-  result: GameResult;
-};
-
-export function toPublicDaily(seed: string, state: GameState): PublicDaily {
-  return {
-    seed,
-    maxGuesses: state.maxGuesses,
-    guessCount: state.guesses.length,
-    isOver: isGameOver(state),
-    result: getResult(state),
-  };
+  if (!isGameOver(state)) return { status: "playing", guessesUsed };
+  if (isWin(state)) return { status: "won", guessesUsed };
+  return { status: "lost", guessesUsed, solution: state.solution };
 }

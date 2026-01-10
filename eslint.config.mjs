@@ -35,7 +35,7 @@ export default [
             {
                 "paths": [
                 {
-                    "name": "@btd/db",
+                    "name": "@wurple/db",
                     "message": "Database access is server-only. Use API routes or server services."
                 }
                 ]
