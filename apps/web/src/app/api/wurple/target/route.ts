@@ -1,15 +1,9 @@
-import { NextResponse } from "next/server";
 import { games } from "@playseed/game-core";
-import { DailyResponse } from "@/app/wurple/helpers/types";
-
-
-const RULES_VERSION = 1;
 
 function seedFromRequest(url: URL) {
   const seed = url.searchParams.get("seed");
   if (seed) return seed;
 
-  // Default seed = today in America/New_York as YYYY-MM-DD
   const now = new Date();
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -35,18 +29,21 @@ export async function GET(req: Request) {
       ? games.wurple.MODE_CONFIG.challenge
       : games.wurple.MODE_CONFIG.easy;
 
-  // Build initial state for THIS mode
   const state = games.wurple.createInitialState(seed, cfg);
+  console.log(`Wurple target generated: seed=${seed} mode=${mode} solution=${state.solution}`);
+  const hex = state.solution; // server-only; not returned as JSON
 
-  const resp: DailyResponse = {
-    seed,
-    mode,
-    maxGuesses: state.maxGuesses,         // number | null baked into state
-    allowDuplicates: cfg.allowDuplicates,
-    includeTiles: cfg.includeTiles,
-    includeDistance: cfg.includeDistance,
-    rulesVersion: RULES_VERSION,
-  };
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">
+  <rect x="0" y="0" width="200" height="100" fill="#${hex}" />
+</svg>`;
 
-  return NextResponse.json(resp, { status: 200 });
+return new Response(svg, {
+  status: 200,
+  headers: {
+    "Content-Type": "image/svg+xml; charset=utf-8",
+    "Cache-Control": "no-store",
+  },
+});
+  
 }

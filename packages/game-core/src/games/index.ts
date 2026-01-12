@@ -1,3 +1,2 @@
-export * as wurple from './wurple'; 
-export * as wurpleServer from "./wurple/server";
-
+export * as wurple from "./wurple";
+export * as wurpleService from "./wurple/server";
