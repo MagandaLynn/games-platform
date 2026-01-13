@@ -36,3 +36,12 @@ export type DailyResponse = {
   includeDistance: boolean;
   rulesVersion: number;
 };
+
+type CompletionMode = "none" | "easy" | "challenge" | "both";
+export type ArchiveMeta = {
+  date: string; // YYYY-MM-DD
+  mode: CompletionMode;
+  // optional extras:
+  easyGuesses?: number;
+  challengeGuesses?: number;
+};

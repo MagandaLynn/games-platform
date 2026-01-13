@@ -9,15 +9,14 @@
       "default": "./src/index.ts"
     }
   },
-"scripts": {
-  "lint": "eslint .",
-  "typecheck": "tsc -p tsconfig.json --noEmit",
-  "test": "vitest run"
-},
-"devDependencies": {
-    "vitest": "^4.0.16"
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
-"test": "vitest run",
-"test:watch": "vitest"
-
+  "devDependencies": {
+    "vitest": "^4.0.16"
+  }
 }
+

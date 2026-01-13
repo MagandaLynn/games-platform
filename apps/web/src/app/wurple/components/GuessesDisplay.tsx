@@ -15,8 +15,6 @@ type GuessesDisplayProps = {
 };
 
 export default function GuessesDisplay({feedbackHistory, input, status, lastRevealedRow, revealId, rowsToDisplay}: GuessesDisplayProps){
-console.log("Rendering GuessesDisplay with feedbackHistory:", feedbackHistory, "input:", input, "status:", status);
-    console.log("Rows to display:", rowsToDisplay);
     return(
     <div style={{ marginTop: 18 }}>
 
@@ -28,7 +26,6 @@ console.log("Rendering GuessesDisplay with feedbackHistory:", feedbackHistory, "
             // 1) Revealed rows (submitted guesses)
             if (revealed) {
                 const shouldAnimateRow = rowIdx === lastRevealedRow;
-                console.log("Rendering revealed row:", rowIdx, "animate?", shouldAnimateRow);
                 return (
                 <div
                     key={`row-${rowIdx}`}

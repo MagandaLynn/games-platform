@@ -7,12 +7,7 @@ import GuessesDisplay from "./components/GuessesDisplay";
 import Distance from "./components/Distance";
 import ModeToggle from "./components/ModeToggle";
 
-import type {
-  DailyResponse,
-  GuessFeedback,
-  GuessResponse,
-  WurpleMode,
-} from "./helpers/types";
+import type { DailyResponse, GuessFeedback, GuessResponse, WurpleMode } from "./helpers/types";
 
 import { buildHeatmap } from "./helpers/helpers";
 import { keyframes } from "./helpers/animations";
@@ -21,67 +16,50 @@ import { buildShareText } from "./helpers/share-results";
 import { loadRun, saveRun } from "./wurpleStorage";
 
 export default function WurpleClient({ initialDaily }: { initialDaily: DailyResponse }) {
-  // Seed is fixed for the page render (daily puzzle)
   const [seed] = useState(initialDaily.seed);
+  const [mode, setMode] = useState<WurpleMode>(initialDaily.mode ?? "easy");
 
-  // Mode can toggle, each has its own storage key + rules
-  const [mode, setMode] = useState<WurpleMode>("easy");
-
-  // Rules come from /api/wurple/daily
   const [rulesVersion, setRulesVersion] = useState(initialDaily.rulesVersion);
   const [rules, setRules] = useState({
-    maxGuesses: initialDaily.maxGuesses,         // number | null
+    maxGuesses: initialDaily.maxGuesses,
     allowDuplicates: initialDaily.allowDuplicates,
     includeTiles: initialDaily.includeTiles,
     includeDistance: initialDaily.includeDistance,
   });
 
-  // Play state
   const [guesses, setGuesses] = useState<string[]>([]);
   const [feedbackHistory, setFeedbackHistory] = useState<GuessFeedback[]>([]);
   const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
   const [input, setInput] = useState("");
 
-  // UI state
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Animation control
   const [lastRevealedRow, setLastRevealedRow] = useState<number>(-1);
   const [revealId, setRevealId] = useState(0);
 
-  // Keyboard pop
   const [lastKey, setLastKey] = useState<string | null>(null);
 
-  // Hard lock against double submit (double click / enter spam)
   const submitLock = useRef(false);
 
   const guessCount = guesses.length;
   const gameOver = status !== "playing";
 
-  // Heatmap based on revealed feedback (tiles only matter when present)
   const heatmap = useMemo(() => buildHeatmap(feedbackHistory), [feedbackHistory]);
 
-  // Prevent duplicates while typing (easy mode usually)
   const usedInCurrent = useMemo(() => {
     const s = new Set(input.toUpperCase().split(""));
     s.delete("");
     return s;
   }, [input]);
 
-  /**
-   * Load rules for current (seed, mode) from API,
-   * then hydrate run from localStorage if present.
-   * If no saved run, reset for fresh run.
-   */
   async function loadDailyAndHydrate(nextMode: WurpleMode) {
     setError(null);
 
-    const res = await fetch(
-      `/api/wurple/daily?seed=${encodeURIComponent(seed)}&mode=${nextMode}`,
-      { cache: "no-store" }
-    );
+    const res = await fetch(`/api/wurple/daily?seed=${encodeURIComponent(seed)}&mode=${nextMode}`, {
+      cache: "no-store",
+    });
 
     const payload = await res.json().catch(() => null);
     if (!res.ok) {
@@ -99,12 +77,10 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
     const saved = loadRun(seed, nextMode);
 
     if (saved) {
-      // Restore saved run
       setGuesses(saved.guesses ?? []);
       setFeedbackHistory(saved.feedbackHistory ?? []);
       setStatus(saved.status ?? "playing");
 
-      // Don’t re-animate on hydration
       setLastRevealedRow(-1);
       setRevealId(0);
 
@@ -113,7 +89,6 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
       return;
     }
 
-    // Fresh run
     setGuesses([]);
     setFeedbackHistory([]);
     setStatus("playing");
@@ -123,7 +98,6 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
     setRevealId(0);
   }
 
-  // On mount + whenever mode changes, load rules + hydrate for that mode.
   useEffect(() => {
     loadDailyAndHydrate(mode).catch((err) => {
       console.error("Error loading daily:", err);
@@ -170,13 +144,11 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
         return;
       }
 
-      // If UI expects tiles, enforce tiles in that mode
       if (rules.includeTiles && !Array.isArray(feedback.tiles)) {
         setError(`Server response missing tiles. ${JSON.stringify(data)}`);
         return;
       }
 
-      // Prevent double-append if something weird happens
       if (guesses[guesses.length - 1] === normalizedGuess) {
         return;
       }
@@ -189,11 +161,9 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
       setStatus(data.status);
       setInput("");
 
-      // Animate only the newly revealed row
       setRevealId((x) => x + 1);
       setLastRevealedRow(nextHistory.length - 1);
 
-      // Persist
       saveRun({
         seed,
         mode,
@@ -210,30 +180,17 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
   }
 
   return (
-    <div
-      style={{
-        marginTop: 16,
-        maxWidth: 560,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
+    <div className="flex flex-col items-center justify-center mt-4">
       <style>{keyframes}</style>
 
       <ModeToggle mode={mode} setMode={setMode} />
 
-      {/* Top swatch (target + guess) */}
-      <ColorDisplay
-        seed={seed}
-        mode={mode}
-        guessHex={guesses[guesses.length - 1] ?? ""}
-      />
+      <ColorDisplay seed={seed} mode={mode} guessHex={guesses[guesses.length - 1] ?? ""} />
 
       {rules.includeDistance && <Distance feedbackHistory={feedbackHistory} />}
 
       {error && (
-        <p style={{ marginTop: 10, color: "crimson" }}>
+        <p className="mt-2 text-sm font-medium text-red-500">
           {error}
         </p>
       )}
@@ -244,9 +201,7 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
         status={status}
         lastRevealedRow={lastRevealedRow}
         revealId={revealId}
-        rowsToDisplay={typeof rules.maxGuesses === "number"
-          ? rules.maxGuesses
-          : feedbackHistory.length + 1}
+        rowsToDisplay={typeof rules.maxGuesses === "number" ? rules.maxGuesses : feedbackHistory.length + 1}
       />
 
       <Keyboard
@@ -264,7 +219,7 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
       />
 
       {gameOver && (
-        <div style={{ marginTop: 20, textAlign: "center" }}>
+        <div className="mt-5 text-center">
           <button
             type="button"
             onClick={async () => {
@@ -280,36 +235,40 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            style={{
-              padding: "12px 20px",
-              borderRadius: 12,
-              background: "#2563eb",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 16,
-              cursor: "pointer",
-            }}
+            className="
+              inline-flex items-center justify-center
+              rounded-lg px-5 py-3
+              text-base font-extrabold
+              text-white
+              bg-easy hover:bg-easyHover
+              active:scale-[0.98]
+              transition duration-150 ease-out
+              shadow-sm
+              focus:outline-none
+              focus-visible:ring-2 focus-visible:ring-easy
+              focus-visible:ring-offset-2 focus-visible:ring-offset-bgPanel
+            "
           >
             Share
           </button>
 
           {copied && (
-            <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 600 }}>
+            <div className="mt-2 text-sm font-semibold text-emerald-500">
               Copied!
             </div>
           )}
         </div>
       )}
 
-      <div style={{ marginTop: 16, marginBottom: 12, textAlign: "center" }}>
+      <div className="mt-4 mb-3 text-center text-sm opacity-90 space-y-1">
         <div>
-          <strong>Date:</strong> {seed}
+          <span className="font-semibold">Date:</span> {seed}
         </div>
         <div>
-          <strong>Guesses:</strong> {guessCount} / {rules.maxGuesses ?? "∞"}
+          <span className="font-semibold">Guesses:</span> {guessCount} / {rules.maxGuesses ?? "∞"}
         </div>
         <div>
-          <strong>Status:</strong> {status}
+          <span className="font-semibold">Status:</span> {status}
         </div>
       </div>
     </div>

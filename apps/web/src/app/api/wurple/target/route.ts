@@ -30,7 +30,6 @@ export async function GET(req: Request) {
       : games.wurple.MODE_CONFIG.easy;
 
   const state = games.wurple.createInitialState(seed, cfg);
-  console.log(`Wurple target generated: seed=${seed} mode=${mode} solution=${state.solution}`);
   const hex = state.solution; // server-only; not returned as JSON
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>

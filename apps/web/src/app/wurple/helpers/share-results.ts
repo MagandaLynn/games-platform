@@ -5,17 +5,36 @@ const TILE_EMOJI: Record<TileStatus, string> = {
   present: "🟨",
   absent: "⬛",
 };
+export const CHALLENGE_RATINGS = [
+  { max: 5,  label: "Chromatic Savant 🧠✨" },
+  { max: 8,  label: "Color Whisperer 🎯" },
+  { max: 12, label: "Dialed In 🔥" },
+  { max: 18, label: "Steady Solver 🧩" },
+  { max: 30, label: "Persistent 💪" },
+  { max: 50, label: "Unstoppable 🏃" },
+  { max: Infinity, label: "You Refused to Quit 🫡" },
+] as const;
 
-function challengeRating(guesses: number) {
-  if (guesses <= 5)  return "Chromatic Savant 🧠✨";
-  if (guesses <= 8)  return "Color Whisperer 🎯";
-  if (guesses <= 12) return "Dialed In 🔥";
-  if (guesses <= 18) return "Steady Solver 🧩";
-  if (guesses <= 30) return "Persistent 💪";
-  if (guesses <= 50) return "Unstoppable 🏃";
-  return "You Refused to Quit 🫡";
+export function challengeRating(guesses: number) {
+  for (const r of CHALLENGE_RATINGS) {
+    if (guesses <= r.max) return r.label;
+  }
+  return CHALLENGE_RATINGS.at(-1)!.label;
 }
 
+
+function buildShareUrl(opts: {
+  origin: string;
+  seed: string; // YYYY-MM-DD
+  mode: "easy" | "challenge";
+  isToday: boolean;
+}) {
+  const { origin, seed, mode, isToday } = opts;
+  const path = isToday ? "/wurple" : `/wurple/archive/${seed}`;
+  const url = new URL(path, origin);
+  url.searchParams.set("mode", mode);
+  return url.toString();
+}
 
 export function buildShareText(opts: {
   date: string;
@@ -25,19 +44,23 @@ export function buildShareText(opts: {
   feedbackHistory: { tiles?: TileStatus[] }[];
 }) {
   const { date, mode, status, maxGuesses, feedbackHistory } = opts;
-  console.log("Max guesses in buildShareText:", maxGuesses);
-    const attempts =
+     const attempts =
     status === "won"
       ? feedbackHistory.length
       : "X";
 
     const header =
         maxGuesses != null
-        ? `Wurple ${date} (${mode[0].toUpperCase() + mode.slice(1)}) ${attempts}/${maxGuesses}`
-        : `Wurple ${date} (${mode[0].toUpperCase() + mode.slice(1)}) ${feedbackHistory.length} guesses`;
+        ? `Wurple ${date} • (${mode[0].toUpperCase() + mode.slice(1)}) • ${attempts}/${maxGuesses}`
+        : `Wurple ${date} • (${mode[0].toUpperCase() + mode.slice(1)}) •  ${feedbackHistory.length} guesses`;
 
-    console.log("Feedback history in buildShareText:", feedbackHistory);
-    
+    const shareUrl = buildShareUrl({
+      origin: GAME_URL,
+      seed: date,
+      mode,
+      isToday: date === new Date().toISOString().slice(0, 10),
+    });
+
     const rowsDisplay = feedbackHistory
         .filter(r => r.tiles)
         .map(r => r.tiles!.map(t => TILE_EMOJI[t]).join(""))
@@ -49,9 +72,9 @@ export function buildShareText(opts: {
     ? `\nRating: ${challengeRating(feedbackHistory.length)}`
     : "";
 
-    return `${header}${rating}\n\n${rows}\n\n${GAME_URL}`;
+    return `${header}${rating}\n\n${rows}\n\n${shareUrl}`;
   }
 
 
-  return `${header}\n\n${rows}\n\n${GAME_URL}`;
+  return `${header}\n\n${rows}\n\n${shareUrl}`;
 }

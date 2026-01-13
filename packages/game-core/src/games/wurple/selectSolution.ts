@@ -36,13 +36,11 @@ export function selectDailyHexSolution(
   if (!opts.requireUniqueDigits) {
     if (allUnique(chars)) {
       // pick two different positions deterministically
-      console.log("Enforcing at least one duplicate in solution");
       const i1 = Math.floor(rand() * 6);
       let i2 = Math.floor(rand() * 6);
       if (i2 === i1) i2 = (i2 + 1) % 6;
 
       chars[i2] = chars[i1]!;
-      console.log(`Duplicated char ${chars[i1]} at positions ${i1} and ${i2}`);
     }
   }
 
