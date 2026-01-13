@@ -22,7 +22,6 @@ export function challengeRating(guesses: number) {
   return CHALLENGE_RATINGS.at(-1)!.label;
 }
 
-
 function buildShareUrl(opts: {
   origin: string;
   seed: string; // YYYY-MM-DD
