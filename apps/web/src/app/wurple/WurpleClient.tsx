@@ -10,6 +10,7 @@ import GuessesDisplay from "./components/GuessesDisplay";
 import GameOver from "./components/GameOver";
 import Distance from "./components/Distance";
 import ModeToggle from "./components/ModeToggle";
+import { buildShareText } from "./helpers/share-results";
 
 export default function WurpleClient({ initialDaily }: { initialDaily: DailyResponse }) {
     const [seed] = useState(initialDaily.seed);
@@ -31,6 +32,8 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
         includeTiles: initialDaily.includeTiles,
         includeDistance: initialDaily.includeDistance,
     });
+    const [copied, setCopied] = useState(false);
+
     const submitLock = useRef(false);
 
     async function loadDaily(nextMode: WurpleMode) {
@@ -177,8 +180,43 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
             rules={rules}
         />
         {gameOver && (
-            <GameOver status={status} />
+        <div style={{ marginTop: 20, textAlign: "center" }}>
+            <button
+            type="button"
+            onClick={async () => {
+                const text = buildShareText({
+                date: seed,
+                mode,
+                status,
+                maxGuesses: rules.maxGuesses,
+                feedbackHistory,
+                });
+                await navigator.clipboard.writeText(text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+
+            }}
+            style={{
+                padding: "12px 20px",
+                borderRadius: 12,
+                background: "#2563eb",
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: 16,
+                cursor: "pointer",
+            }}
+            >
+            Share
+            </button>
+        </div>
         )}
+        {copied && (
+            <div style={{ marginTop: 8, color: "#22c55e", fontWeight: 600 }}>
+                Copied!
+            </div>
+)}
+
+
         <div style={{ marginBottom: 12 }}>
                 <div><strong>Date:</strong> {seed}</div>
                 <div><strong>Guesses:</strong> {guessCount} / {rules.maxGuesses ?? "∞"}</div>
