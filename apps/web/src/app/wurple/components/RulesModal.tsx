@@ -57,6 +57,15 @@ export default function RulesModal({ open, onClose }: Props) {
 
         <div className="px-5 py-4 text-sm leading-6">
           <div className="space-y-4">
+            {/* Thematic intro */}
+            <div className="rounded-xl bg-bg-soft p-3">
+              <p className="font-semibold">Wurple rewards intuition <em>and</em> logic.</p>
+              <p className="mt-1 text-text-muted">
+                Some players chase colors. Others crack codes. The puzzle doesn't care how
+                you think — only that you think.
+              </p>
+            </div>
+
             <p>
               Each guess is a hex code like{" "}
               <span className="font-mono">3FA6D0</span>. After you submit, tiles
@@ -78,14 +87,48 @@ export default function RulesModal({ open, onClose }: Props) {
               </li>
             </ul>
 
+            {/* Hex explanation (longer version you liked) */}
+            <div className="rounded-xl bg-bg-soft p-3">
+              <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
+                What is a hex code?
+              </div>
+              <p className="mt-1 text-text-muted">
+                A hex code is a six-character way of describing color, written as{" "}
+                <span className="font-mono">RRGGBB</span>.
+              </p>
+              <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
+                <li>
+                  <span className="font-mono">RR</span> = red,{" "}
+                  <span className="font-mono">GG</span> = green,{" "}
+                  <span className="font-mono">BB</span> = blue
+                </li>
+                <li>
+                  Each pair ranges from <span className="font-mono">00</span> to{" "}
+                  <span className="font-mono">FF</span>
+                </li>
+                <li>
+                  <span className="font-mono">00</span> means none of that color,{" "}
+                  <span className="font-mono">FF</span> means the maximum
+                </li>
+              </ul>
+
+              <p className="mt-2 text-text-muted">
+                Examples: <span className="font-mono">000000</span> is black,{" "}
+                <span className="font-mono">FFFFFF</span> is white,{" "}
+                <span className="font-mono">FF0000</span> is pure red,{" "}
+                <span className="font-mono">00FF00</span> is pure green, and{" "}
+                <span className="font-mono">0000FF</span> is pure blue.
+              </p>
+            </div>
+
+            {/* Modes */}
             <div className="grid gap-3">
               <div className="rounded-xl bg-bg-soft p-3">
                 <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
                   Easy
                 </div>
                 <p className="mt-1">
-                  No repeated characters. (Each digit/letter can appear at most
-                  once in the answer.)
+                  No repeated characters and a maximum of 6 guesses.
                 </p>
               </div>
 
@@ -94,59 +137,34 @@ export default function RulesModal({ open, onClose }: Props) {
                   Challenge
                 </div>
                 <p className="mt-1">
-                  Repeats are allowed. The answer may contain the same
-                  digit/letter more than once.
+                  Repeat characters are allowed. No max guesses — play until you solve
+                  it!
                 </p>
               </div>
 
-              <div className="rounded-xl bg-bg-soft p-3">
-                <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
-                  Coming soon: Medium
-                </div>
-                <p className="mt-1">
-                  Easy rules, but repeats can appear sometimes. A bridge between
-                  Easy and Challenge.
-                </p>
-              </div>
             </div>
 
+            {/* Ratings (Challenge Mode) */}
             <div className="rounded-xl bg-bg-soft p-3">
               <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
-                Ratings
+                Ratings (Challenge Mode)
               </div>
+
               <p className="mt-1 text-text-muted">
-                Ratings are a fun summary of how your solve went — lower guesses
-                and better accuracy earn stronger titles.
+                Your rating is based on how many guesses it took to solve the puzzle.
               </p>
 
-<div className="rounded-xl bg-bg-soft p-3">
-  <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
-    Ratings (Challenge Mode)
-  </div>
-
-  <p className="mt-1 text-text-muted">
-    Your rating is based on how many guesses it took to solve the puzzle.
-  </p>
-
-  <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
-    {CHALLENGE_RATINGS.map((r, i) => (
-      <li key={i}>
-        <span className="font-semibold text-text">{r.label}</span>
-        {Number.isFinite(r.max) && (
-          <> — {r.max} guesses or fewer</>
-        )}
-      </li>
-    ))}
-  </ul>
-
-  <p className="mt-2 text-xs text-text-muted">
-    Ratings may evolve as the game grows.
-  </p>
-</div>
-
+              <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
+                {CHALLENGE_RATINGS.map((r, i) => (
+                  <li key={i}>
+                    <span className="font-semibold text-text">{r.label}</span>
+                    {Number.isFinite(r.max) && <> — {r.max} guesses or fewer</>}
+                  </li>
+                ))}
+              </ul>
 
               <p className="mt-2 text-xs text-text-muted">
-                (Exact thresholds may change as the game evolves.)
+                Ratings may evolve as the game grows.
               </p>
             </div>
 
@@ -170,3 +188,4 @@ export default function RulesModal({ open, onClose }: Props) {
     </div>
   );
 }
+
