@@ -21,9 +21,25 @@ export default async function ArchivePage({ params, searchParams }: Props) {
   url.searchParams.set("seed", date);
   url.searchParams.set("mode", mode);
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to load archive puzzle");
-
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: h, // 👈 forward cookies/auth headers
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    return (
+      <main style={{ padding: 24 }}>
+        <h1>Wurple</h1>
+        <p>Couldn't load archived puzzle.</p>
+        <pre style={{ whiteSpace: "pre-wrap" }}>
+          {`Status: ${res.status}\n${text.slice(0, 300)}`}
+        </pre>
+        <Link href="/wurple" className="underline">
+          Play Today's Puzzle
+        </Link>
+      </main>
+    );
+  }
   const initialDaily = await res.json();
 
   return (

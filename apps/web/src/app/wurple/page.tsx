@@ -25,17 +25,33 @@ export default async function Page({ searchParams }: Props) {
 
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
-  const proto = process.env.NODE_ENV === "development" ? "http" : "https";
+  const proto = h.get("x-forwarded-proto") ?? "https";
+
 
   const url = new URL("/api/wurple/daily", `${proto}://${host}`);
   url.searchParams.set("seed", seed);
   url.searchParams.set("mode", mode);
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API failed (${res.status}): ${text.slice(0, 300)}`);
-  }
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: h, // 👈 forward cookies/auth headers
+  });
+if (!res.ok) {
+  const text = await res.text();
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>Wurple</h1>
+      <p>Couldn't load today's puzzle.</p>
+      <pre style={{ whiteSpace: "pre-wrap" }}>
+        {`Status: ${res.status}\n${text.slice(0, 300)}`}
+      </pre>
+      <Link href="/wurple/archive" className="underline">
+        Play Archived Puzzles
+      </Link>
+    </main>
+  );
+}
+
 
   const initialDaily = await res.json();
   const d1=new Date(initialDaily.seed).toDateString();
