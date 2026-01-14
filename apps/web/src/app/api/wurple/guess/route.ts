@@ -12,6 +12,9 @@ function parseMode(value: unknown): "easy" | "challenge" {
   const m = value.toLowerCase();
   return m === "challenge" ? "challenge" : "easy";
 }
+export function GET() {
+  return NextResponse.json({ error: "Use POST" }, { status: 405 });
+}
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
