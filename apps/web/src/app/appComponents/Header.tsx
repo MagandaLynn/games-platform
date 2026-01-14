@@ -12,7 +12,7 @@ export default function Header() {
     <header
       className={`
         sticky top-0 z-40 w-full
-        bbg-[#0B1020] border-b-2 border-link dark:border-white/10
+        bbg-[#0B1020] border-b border-link dark:border-white/10
         bg-bg-panel/90 backdrop-blur
         
       `}

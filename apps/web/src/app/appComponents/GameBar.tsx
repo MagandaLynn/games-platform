@@ -104,7 +104,7 @@ export default function GameBar({
   const status = context?.status;
 
   return (
-    <header className="sticky top-8 z-30 w-full bg-[#121A2A] border-b-2 border-link mb-2 dark:border-white/10 bg-bg-panel">
+    <header className="sticky top-8 z-30 w-full bg-[#121A2A] border-b border-link mb-2 dark:border-white/10 bg-bg-panel">
       <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-3">
         {/* Left cluster */}
         <div className="flex min-w-0 items-center gap-2">
