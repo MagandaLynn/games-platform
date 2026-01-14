@@ -32,10 +32,10 @@ export default async function Page({ searchParams }: Props) {
   url.searchParams.set("seed", seed);
   url.searchParams.set("mode", mode);
 
-  const res = await fetch(url.toString(), {
-    cache: "no-store",
-    headers: h, // 👈 forward cookies/auth headers
-  });
+const res = await fetch(url.toString(), {
+  cache: "no-store",
+  headers: Object.fromEntries(h.entries()),
+});
 if (!res.ok) {
   const text = await res.text();
   return (
