@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format, startOfYear, isAfter } from "date-fns";
@@ -13,7 +13,7 @@ type Mode = "easy" | "challenge";
  * - easyCompleted/challengeCompleted: show SOLID dots
  * - easyInProgress/challengeInProgress: show HOLLOW dots (only when not completed)
  */
-type ArchiveMeta = {
+export type ArchiveMeta = {
   easyCompleted?: boolean;
   challengeCompleted?: boolean;
 
@@ -37,6 +37,7 @@ function toDateKey(d: Date) {
 }
 
 export default function WurpleArchiveCalendar({ archiveByDate, onSelectDate }: Props) {
+  
   const router = useRouter();
 
   const yesterday = useMemo(() => {
@@ -96,7 +97,7 @@ export default function WurpleArchiveCalendar({ archiveByDate, onSelectDate }: P
     <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 text-center">
       {/* Title */}
       <div className="space-y-1">
-        <h2 className="m-0 text-lg font-bold text-text">Wurple Archive</h2>
+        <h2 className="m-0 text-lg font-bold text-text">Archive Calendar</h2>
         <div className="text-xs text-text-muted">
           Markers: left = Easy, right = Challenge. Solid = completed, hollow = in progress.
         </div>

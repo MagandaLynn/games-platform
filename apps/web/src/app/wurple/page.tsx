@@ -1,7 +1,11 @@
 // apps/web/src/app/wurple/page.tsx
+
 import { headers } from "next/headers";
 import WurpleClient from "./WurpleClient";
 import Link from "next/link";
+import GameBar from "../appComponents/GameBar";
+import RulesModal from "./components/RulesModal";
+import { WurpleClientContainer } from "./WurpleClientContainer";
 
 type Props = {
   searchParams?: Promise<{ seed?: string; mode?: string }>;
@@ -40,7 +44,9 @@ if (!res.ok) {
   const text = await res.text();
   return (
     <main style={{ padding: 24 }}>
-      <h1>Wurple</h1>
+
+      
+      
       <p>Couldn't load today's puzzle.</p>
       <pre style={{ whiteSpace: "pre-wrap" }}>
         {`Status: ${res.status}\n${text.slice(0, 300)}`}
@@ -60,13 +66,9 @@ if (!res.ok) {
   const isToday = d1 === d2;
   console.log("WurpleClient initialDaily", initialDaily);
   return (
-    <main style={{ padding: 24 }}>
-    <h1 className="center flex flex-col items-center gap-2 mb-6">
-      <span className="font-semibold text-xl">Today’s Puzzle</span>
+    <main>
 
-    </h1>
-
-      <WurpleClient initialDaily={initialDaily} />
+      <WurpleClientContainer initialDaily={initialDaily} />
           <Link
         href="/wurple/archive"
         className="underline opacity-80 hover:opacity-100 flex justify-center mt-6 block"

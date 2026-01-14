@@ -5,7 +5,8 @@ import RulesModal from './RulesModal';
 export default function WurpleHeader() {
     const [showRules, setShowRules] = React.useState(false);
     return (
-        <header className="flex items-end justify-end text-white ">
+        <header className="flex items-end justify-between text-white padding-4 pb-2">
+          <div>Wurple</div>
 <div className="mt-3 flex items-center justify-center gap-2">
 <button
   onClick={() => setShowRules(true)}

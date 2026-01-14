@@ -14,10 +14,16 @@ import { keyframes } from "./helpers/animations";
 import { buildShareText } from "./helpers/share-results";
 
 import { loadRun, saveRun } from "./wurpleStorage";
+import { shareWurple } from "./helpers/wurpleShare";
+import { useToast } from "../hooks/useToast";
+import Toast from "../appComponents/Toast";
+import RulesModal from "./components/RulesModal";
+import GameBar from "../appComponents/GameBar";
+import { recordCompletion } from "./helpers/statsStore";
 
-export default function WurpleClient({ initialDaily }: { initialDaily: DailyResponse }) {
+export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode, setStats }: { initialDaily: DailyResponse, setOpenRules?: React.Dispatch<React.SetStateAction<boolean>>, mode: WurpleMode, setMode: React.Dispatch<React.SetStateAction<WurpleMode>>, setStats: React.Dispatch<React.SetStateAction<ReturnType<typeof recordCompletion> | null>> }) {
+  
   const [seed] = useState(initialDaily.seed);
-  const [mode, setMode] = useState<WurpleMode>(initialDaily.mode ?? "easy");
 
   const [rulesVersion, setRulesVersion] = useState(initialDaily.rulesVersion);
   const [rules, setRules] = useState({
@@ -40,6 +46,8 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
   const [revealId, setRevealId] = useState(0);
 
   const [lastKey, setLastKey] = useState<string | null>(null);
+  const { message, showToast } = useToast();
+
 
   const submitLock = useRef(false);
 
@@ -98,6 +106,26 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
     setRevealId(0);
   }
 
+  const handleShare = async () => {
+  if (status === "playing") {
+    // optional toast: "Finish first to share results"
+    return;
+  }
+
+  const result = await shareWurple({
+    seed,
+    mode,
+    status,
+    guessCount: guesses.length,
+    maxGuesses: rules.maxGuesses,
+  });
+
+  // optional toast if clipboard fallback
+  if (result.ok && result.method === "clipboard") {
+    showToast("Copied to clipboard!");
+  }
+};
+
   useEffect(() => {
     loadDailyAndHydrate(mode).catch((err) => {
       console.error("Error loading daily:", err);
@@ -105,6 +133,21 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed, mode]);
+
+
+  useEffect(() => {
+  if (!initialDaily) return; // or initialDaily
+  if (!gameOver) return; // whatever your boolean is
+  if (status !== "won" && status !== "lost") return;
+
+  // use the seed from your daily payload — that's your day key
+  const seed = initialDaily.seed;            // "2026-01-14"
+  const mode = initialDaily.mode;            // "easy" | "challenge"
+  const guessCount = guesses.length;  // number of guesses taken
+
+  const updated = recordCompletion(seed, mode, status, guessCount);
+  setStats(updated);
+}, [gameOver, status]);
 
   async function submitGuess() {
     if (submitLock.current) return;
@@ -180,9 +223,9 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
   }
 
   return (
-    <div className="flex flex-col items-center justify-center mt-4">
+    <div className="flex flex-col items-center justify-center">
       <style>{keyframes}</style>
-
+      
       <ModeToggle mode={mode} setMode={setMode} />
 
       <ColorDisplay seed={seed} mode={mode} guessHex={guesses[guesses.length - 1] ?? ""} />
@@ -257,6 +300,8 @@ export default function WurpleClient({ initialDaily }: { initialDaily: DailyResp
               Copied!
             </div>
           )}
+          {message && <Toast message={message} />}
+
         </div>
       )}
 

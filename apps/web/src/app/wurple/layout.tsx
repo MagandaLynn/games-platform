@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import WurpleHeader from './components/WurpleHeader'
 import WurpleFooter from './components/WurpleFooter'
+import GameBar from '../appComponents/GameBar'
 
 export const metadata: Metadata = {
     title: 'Wurple',
@@ -14,9 +15,7 @@ export default function WurpleLayout({
 }) {
     return (
         <div className="wurple-layout">
-            <WurpleHeader />
             {children}
-            <WurpleFooter />
         </div>
     )
 }
