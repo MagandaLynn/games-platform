@@ -1,13 +1,12 @@
 import Header from "./appComponents/Header";
 import "./globals.css";
 import type { Metadata } from "next";
-
 export const metadata: Metadata = {
-  title: "Wurple",
-  description: "A daily color-logic puzzle",
+  title: "Decide ~ Learn ~ Do",
+  description: "A website where I am improving my coding skills by building games.",
   icons: {
     icon: "/favicon.ico",
-    apple: "/apple-icon.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {

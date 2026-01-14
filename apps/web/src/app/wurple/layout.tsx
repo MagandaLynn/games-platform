@@ -5,7 +5,11 @@ import GameBar from '../appComponents/GameBar'
 
 export const metadata: Metadata = {
     title: 'Wurple',
-    description: 'Wurple game',
+    description: 'A daily color-logic puzzle',
+    icons: {
+        icon: '/favicon.ico',
+        apple: '/apple-touch-icon.png',
+    },
 }
 
 export default function WurpleLayout({
