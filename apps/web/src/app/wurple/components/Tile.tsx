@@ -1,3 +1,6 @@
+// apps/web/src/app/wurple/components/Tile.tsx
+import React from "react";
+
 export default function Tile({
   char,
   status,
@@ -9,21 +12,25 @@ export default function Tile({
   delayMs: number;
   animate: boolean;
 }) {
-  const bg =
-    status === "correct" ? "#22c55e" :
-    status === "present" ? "#eab308" :
-    "#374151";
-
-  const fg =
-    status === "correct" ? "#0b1b10" :
-    status === "present" ? "#1a1402" :
-    "#f9fafb";
-
   const size = 44;
-  
+
+  const backBg =
+    status === "correct"
+      ? "bg-emerald-500"
+      : status === "present"
+      ? "bg-amber-400"
+      : "bg-slate-700";
+
+  const backFg =
+    status === "correct"
+      ? "text-emerald-950"
+      : status === "present"
+      ? "text-amber-950"
+      : "text-slate-50";
 
   return (
     <div
+      className="shrink-0"
       style={{
         width: size,
         height: size,
@@ -31,58 +38,43 @@ export default function Tile({
       }}
     >
       <div
+        className="relative h-full w-full"
         style={{
-          width: "100%",
-          height: "100%",
-          position: "relative",
           transformStyle: "preserve-3d",
           borderRadius: 10,
           animationName: animate ? "tileFlip" : "revealStatic",
-        animationDuration: "520ms",
-        animationTimingFunction: "ease-in-out",
-        animationDelay: animate ? `${delayMs}ms` : "0ms",
-        animationFillMode: "both",
-
+          animationDuration: "520ms",
+          animationTimingFunction: "ease-in-out",
+          animationDelay: animate ? `${delayMs}ms` : "0ms",
+          animationFillMode: "both",
         }}
       >
-        {/* FRONT: neutral, no letter */}
+        {/* FRONT: unguessed */}
         <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 10,
-            background: "#111827",
-            border: "1px solid rgba(255,255,255,0.20)",
-            backfaceVisibility: "hidden",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontWeight: 800,
-            letterSpacing: 1,
-            color: "#e5e7eb",
-            userSelect: "none",
-          }}
-        >
-          {/* intentionally blank on front */}
-        </div>
+          className="
+            absolute inset-0 grid place-items-center select-none rounded-[10px]
+            bg-bg-panel
+            border border-slate-400/70
+            shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]
+            dark:bg-bg-panel
+            dark:border-white/20
+            dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]
+          "
+          style={{ backfaceVisibility: "hidden" }}
+        />
 
-        {/* BACK: revealed color + letter */}
+        {/* BACK: revealed */}
         <div
+          className={[
+            "absolute inset-0 grid place-items-center select-none rounded-[10px]",
+            backBg,
+            backFg,
+            "border border-black/10 dark:border-white/15",
+            "font-mono font-extrabold tracking-[0.08em]",
+          ].join(" ")}
           style={{
-            position: "absolute",
-            inset: 0,
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 10,
-            background: bg,
-            border: "1px solid rgba(255,255,255,0.15)",
-            color: fg,
             transform: "rotateX(180deg)",
             backfaceVisibility: "hidden",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontWeight: 800,
-            letterSpacing: 1,
-            userSelect: "none",
           }}
         >
           {char === " " ? "" : char}

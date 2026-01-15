@@ -20,7 +20,7 @@ useEffect(() => {
 }, []);
     return (
         
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col min-h-dvh overflow-x-hidden">
             <GameBar
                 backHref="/"
                 context={{ title: "Wurple", subtitle: "Archived Puzzle", mode }}
@@ -36,7 +36,8 @@ useEffect(() => {
                 mode={statsMode}
                 onModeChange={setStatsMode}
                 />
-            <div className="mx-auto w-full max-w-md px-4  flex flex-col">
+           <div className="mx-auto w-full max-w-md px-4 flex flex-col min-w-0">
+
         {/* Context header (lightweight) */}
         <div className="mb-4 text-center">
           <div className="uppercase text-xs tracking-widest text-text-muted">
@@ -53,9 +54,8 @@ useEffect(() => {
           </div>
         </div>
 
-            <div className="flex-1 overflow-auto">
                 <WurpleClient initialDaily={initialDaily} setOpenRules={setRulesOpen} mode={mode} setMode={setMode} setStats={setStats} />
-            </div>
+            
                  {/* Bottom navigation (de-emphasized) */}
         <div className="mb-8 mt-2 flex flex-col items-center gap-3 text-sm">
           <Link

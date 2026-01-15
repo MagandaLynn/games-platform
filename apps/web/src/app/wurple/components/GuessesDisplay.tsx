@@ -16,9 +16,9 @@ type GuessesDisplayProps = {
 
 export default function GuessesDisplay({feedbackHistory, input, status, lastRevealedRow, revealId, rowsToDisplay}: GuessesDisplayProps){
     return(
-    <div style={{ marginTop: 18 }}>
+        <div className="mt-4">
+            <div className="grid gap-2.5">
 
-        <div style={{ display: "grid", gap: 10 }}>
             {Array.from({ length: rowsToDisplay }).map((_, rowIdx) => {
             const revealed = feedbackHistory[rowIdx]; // GuessFeedback | undefined
             const isCurrentRow = rowIdx === feedbackHistory.length && status === "playing";

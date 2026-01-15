@@ -10,15 +10,12 @@ import ModeToggle from "./components/ModeToggle";
 import type { DailyResponse, GuessFeedback, GuessResponse, WurpleMode } from "./helpers/types";
 
 import { buildHeatmap } from "./helpers/helpers";
-import { keyframes } from "./helpers/animations";
 import { buildShareText } from "./helpers/share-results";
 
 import { loadRun, saveRun } from "./wurpleStorage";
 import { shareWurple } from "./helpers/wurpleShare";
 import { useToast } from "../hooks/useToast";
 import Toast from "../appComponents/Toast";
-import RulesModal from "./components/RulesModal";
-import GameBar from "../appComponents/GameBar";
 import { recordCompletion } from "./helpers/statsStore";
 
 export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode, setStats }: { initialDaily: DailyResponse, setOpenRules?: React.Dispatch<React.SetStateAction<boolean>>, mode: WurpleMode, setMode: React.Dispatch<React.SetStateAction<WurpleMode>>, setStats: React.Dispatch<React.SetStateAction<ReturnType<typeof recordCompletion> | null>> }) {
@@ -142,7 +139,6 @@ export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode
 
   // use the seed from your daily payload — that's your day key
   const seed = initialDaily.seed;            // "2026-01-14"
-  const mode = initialDaily.mode;            // "easy" | "challenge"
   const guessCount = guesses.length;  // number of guesses taken
 
   const updated = recordCompletion(seed, mode, status, guessCount);
@@ -224,7 +220,7 @@ export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <style>{keyframes}</style>
+    
       
       <ModeToggle mode={mode} setMode={setMode} />
 

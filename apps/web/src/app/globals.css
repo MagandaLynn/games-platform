@@ -1,6 +1,5 @@
 @import "tailwindcss";
-
-/* Tell Tailwind which custom utilities should exist */
+@custom-variant dark (&:where(.dark, .dark *));
 @theme {
   /* App surfaces */
   --color-bg-app: #f8fafc;
@@ -20,9 +19,23 @@
 
   --color-link: #2563eb;
   --color-link-hover: #1d4ed8;
+
+
+  --color-preview-opacity: 0.95;
+  --color-tile-future: #e5e7eb;   /* lighter than filled */
+  --color-tile-active: #dbeafe;   /* subtle structure */
+  --color-tile-border: #94a3b8;
+
+  /* tiles */
+  --color-tile-empty: #e5e7eb;     /* slightly darker than now */
+  --color-tile-border: #94a3b8;
+
+  /* elevation */
+  --shadow-card: 0 18px 40px rgba(15, 23, 42, 0.10);
+  --shadow-chip: 0 8px 18px rgba(15, 23, 42, 0.14);
 }
 
-/* Dark mode overrides (same variable names) */
+/* Dark mode overrides */
 .dark {
   --color-bg-app: #0b0e14;
   --color-bg-panel: #121826;
@@ -33,4 +46,51 @@
 
   --color-link: #93c5fd;
   --color-link-hover: #bfdbfe;
+  
+  --color-preview-opacity: 1;
+  --color-tile-future: #0f172a;
+  --color-tile-active: #1e293b;
+  --color-tile-border: #334155;
+
+  --color-tile-empty: #0f172a;
+  --color-tile-border: #334155;
+
+  --shadow-card: 0 18px 40px rgba(0, 0, 0, 0.35);
+  --shadow-chip: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* Animations */
+@keyframes shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-4px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes readyPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes keyPop {
+  0%   { transform: scale(1); }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes tileFlip {
+  0%   { transform: rotateX(0deg); }
+  100% { transform: rotateX(180deg); }
+}
+
+@keyframes tilePopIn {
+  0%   { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes revealStatic {
+  0%   { transform: rotateX(180deg); }
+  100% { transform: rotateX(180deg); }
 }
