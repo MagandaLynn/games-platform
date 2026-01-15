@@ -1,5 +1,5 @@
 {
-  "name": "@wurple/db",
+  "name": "@playseed/db",
   "version": "0.0.0",
   "private": true,
   "prisma": {
