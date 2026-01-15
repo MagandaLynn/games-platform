@@ -1,9 +1,7 @@
-
 {
-  
   "name": "games-website",
   "private": true,
-"packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@10.0.0",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
@@ -19,8 +17,7 @@
     "autoprefixer": "^10.4.23",
     "eslint": "^9",
     "turbo": "^2.7.3",
-    "typescript": "^5",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.52.0"
   }
-  
 }

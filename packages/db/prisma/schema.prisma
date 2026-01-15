@@ -1,14 +1,17 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// packages/db/prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model HangmanPuzzle {
+  id         String   @id @default(cuid())
+  slug       String   @unique              // e.g. "2026-01-15" or "daily-2026-01-15"
+  phrase     String                        // the answer phrase
+  hint       String?                       // optional hint
+  createdAt  DateTime @default(now())
 }

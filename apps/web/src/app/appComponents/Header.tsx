@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
+import { AuthButton } from "./AuthButton";
 
 export default function Header() {
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export default function Header() {
           </Link> */}
 
           {/* Placeholder for future auth / theme */}
+          <AuthButton />
           <ThemeToggle />
         </nav>
       </div>

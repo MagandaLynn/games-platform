@@ -2,18 +2,23 @@
   "name": "@wurple/db",
   "version": "0.0.0",
   "private": true,
-    "prisma": {
-    "schema": "prisma/schema.prisma"
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "prisma": "prisma",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "prisma": "^7.2.0"
+    "prisma": "^7.2.0",
+    "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@prisma/client": "^7.2.0"
-  }
+    "@prisma/client": "^7.2.0",
+    "@prisma/client-runtime-utils": "^7.2.0"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts"
 }
