@@ -12,13 +12,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@types/pg": "^8.16.0",
     "prisma": "^7.2.0",
     "tsx": "^4.21.0"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
-    "@prisma/client-runtime-utils": "^7.2.0"
+    "@prisma/client-runtime-utils": "^7.2.0",
+    "pg": "^8.17.1"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts"
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  }
 }

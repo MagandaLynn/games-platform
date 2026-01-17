@@ -21,14 +21,14 @@ const GAMES: Game[] = [
     status: "live",
     imageSrc: "/games/wurple3.png",
     imageAlt: "Wurple game",
-  }
-  // {
-  //   id: "coming-1",
-  //   title: "Next Game",
-  //   description: "Reserved slot for your next build.",
-  //   href: "#",
-  //   status: "coming-soon",
-  // },
+  },
+  {
+    id: "hangman",
+    title: "Hangman",
+    description: "Create puzzles and challenge friends to solve them.",
+    href: "#",
+    status: "coming-soon",
+  },
 ];
 
 function StatusPill({ status }: { status?: Game["status"] }) {

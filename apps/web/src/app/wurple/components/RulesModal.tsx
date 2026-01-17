@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { CHALLENGE_RATINGS } from "../helpers/share-results";
+import { CHALLENGE_RATINGS, challengeRatingLabel } from "../helpers/share-results";
 
 type Props = {
   open: boolean;
@@ -12,11 +12,12 @@ export default function RulesModal({ open, onClose }: Props) {
   const titleId = useId();
   const [step, setStep] = useState(0);
 
-  const totalSteps = 3;
+  // 0: How to play, 1: Hex codes, 2: Modes, 3: Ratings
+  const totalSteps = 4;
 
   useEffect(() => {
     if (!open) return;
-    setStep(0); // reset when opened
+    setStep(0);
   }, [open]);
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export default function RulesModal({ open, onClose }: Props) {
   const title = useMemo(() => {
     if (step === 0) return "How to play Wurple";
     if (step === 1) return "Hex codes (RRGGBB)";
-    return "Modes & ratings";
+    if (step === 2) return "Modes";
+    return "Ratings";
   }, [step]);
 
   if (!open) return null;
@@ -46,21 +48,28 @@ export default function RulesModal({ open, onClose }: Props) {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      {/* Backdrop: click to close */}
+      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
         onMouseDown={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-md rounded-2xl bg-bg-panel text-text shadow-xl ring-1 ring-black/10">
+      {/* Panel */}
+      <div
+        className="
+          relative w-full max-w-md rounded-2xl bg-bg-panel text-text shadow-xl ring-1 ring-black/10
+          flex flex-col
+          max-h-[calc(100dvh-2rem)]
+        "
+      >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4 dark:border-white/10">
-          <div>
-            <h2 id={titleId} className="text-lg font-extrabold">
+        <div className="shrink-0 flex items-start justify-between gap-3 border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-lg font-extrabold leading-6">
               {title}
             </h2>
-            <p className="mt-1 text-sm text-text-muted">
+            <p className="mt-0.5 text-xs text-text-muted">
               Guess the 6-digit hex color in as few tries as possible.
             </p>
           </div>
@@ -68,132 +77,186 @@ export default function RulesModal({ open, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-bg-soft px-3 py-2 text-sm font-semibold text-text hover:opacity-90 transition"
+            className="shrink-0 rounded-lg bg-bg-soft px-3 py-2 text-sm font-semibold text-text hover:opacity-90 transition"
             aria-label="Close rules"
           >
             ✕
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-4 text-sm leading-6">
+        {/* Body (scrolls) */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm leading-5">
           {step === 0 && (
-            <div className="space-y-4">
-              <div className="rounded-xl bg-bg-soft p-3">
+            <div className="space-y-2">
+              <div className="rounded-xl bg-bg-soft p-2">
                 <p className="font-semibold">
                   Wurple rewards intuition <em>and</em> logic.
                 </p>
-                <p className="mt-1 text-text-muted">
-                  Some players chase colors. Others crack codes. The puzzle doesn't care
-                  how you think — only that you think.
+                <p className="text-text-muted">
+                  Some players chase colors. Others crack codes. Different paths. Same
+                  solution.
                 </p>
               </div>
 
-              <p>
-                Each guess is a hex code like <span className="font-mono">3FA6D0</span>.
-                After you submit, tiles show feedback for each character.
+              <p className="text-text-muted">
+                Each guess is a hex code like{" "}
+                <span className="font-mono font-semibold text-text">3FA6D0</span>. After
+                you submit, tiles show feedback for each character:
               </p>
 
               <ul className="ml-4 list-disc space-y-1 text-text-muted">
-                <li>
-                  <span className="font-semibold text-text">Green</span>: correct
-                  character in the correct spot
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-[2px] inline-block h-4 w-4 rounded-sm bg-green-400"
+                    aria-hidden
+                  />
+                  <span>
+                    <span className="font-semibold text-text">Green</span> = right
+                    character, right spot
+                  </span>
                 </li>
-                <li>
-                  <span className="font-semibold text-text">Yellow</span>: character
-                  appears in the code, but in a different spot
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-[2px] inline-block h-4 w-4 rounded-sm bg-yellow-400"
+                    aria-hidden
+                  />
+                  <span>
+                    <span className="font-semibold text-text">Yellow</span> = in the
+                    code, wrong spot
+                  </span>
                 </li>
-                <li>
-                  <span className="font-semibold text-text">Gray</span>: character not
-                  in the code
+                <li className="flex items-start gap-2">
+                  <span
+                    className="mt-[2px] inline-block h-4 w-4 rounded-sm bg-gray-400"
+                    aria-hidden
+                  />
+                  <span>
+                    <span className="font-semibold text-text">Gray</span> = not in the
+                    code
+                  </span>
                 </li>
               </ul>
 
-              <p className="text-text-muted">
-                Same date = same puzzle for everyone (per mode). Come back tomorrow for
-                a new one.
+              <p className="text-xs text-text-muted">
+                Same date = same puzzle for everyone (per mode). Come back tomorrow for a new puzzle.
               </p>
             </div>
           )}
 
           {step === 1 && (
-            <div className="space-y-4">
-              <div className="rounded-xl bg-bg-soft p-3">
+            <div className="space-y-2">
+              <div className="rounded-xl bg-bg-soft p-2">
                 <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
                   What is a hex code?
                 </div>
-                <p className="mt-1 text-text-muted">
-                  A hex color is written as <span className="font-mono">RRGGBB</span>.
-                  Each pair controls how much Red, Green, and Blue the color has.
+
+                <p className="text-text-muted">
+                  A hex color is a 6 character code: {" "}
+                  <span className="font-mono font-semibold text-text">RRGGBB</span><br />
+                  <span className="font-semibold text-text">Red (RR)</span>,{" "}
+                  <span className="font-semibold text-text">Green (GG)</span>,{" "}
+                  <span className="font-semibold text-text">Blue (BB)</span>, 
+                  each range from 00 to FF (decimal 0–255).
+                
+                  <br />
                 </p>
 
-                <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
-                  <li>
-                    <span className="font-mono">00</span> means none of that color
-                  </li>
-                  <li>
-                    <span className="font-mono">FF</span> means the maximum amount
-                  </li>
-                  <li>Higher values = more intensity, lower values = less</li>
-                </ul>
+                
+                    <span className="font-mono font-semibold text-text">00</span> = none
+                    <span className="font-mono font-semibold text-text pl-3">FF</span> = max
+                    <span className="pl-3"> Higher = more intensity</span>
+                
+              </div>
 
-                <p className="mt-2 text-text-muted">
-                  Examples: <span className="font-mono">000000</span> is black,{" "}
-                  <span className="font-mono">FFFFFF</span> is white,{" "}
-                  <span className="font-mono">FF0000</span> is pure red,{" "}
-                  <span className="font-mono">00FF00</span> is pure green,{" "}
-                  <span className="font-mono">0000FF</span> is pure blue.
-                </p>
+              <div className="rounded-xl bg-bg-soft p-2">
+                <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
+                  Quick examples
+                </div>
 
-                <p className="mt-2 text-xs text-text-muted">
-                  You don't need to be a color expert to play Wurple. Just use the
-                  feedback tiles to guide your guesses!
+                <div className="mt-1 grid gap-1.5 text-text-muted">
+                  {[
+                    { hex: "000000", label: "black" },
+                    { hex: "FFFFFF", label: "white" },
+                    { hex: "FF0000", label: "red" },
+                    { hex: "00FF00", label: "green" },
+                    { hex: "0000FF", label: "blue" },
+                  ].map((ex) => (
+                    <div
+                      key={ex.hex}
+                      className="flex items-center gap-2 rounded-lg bg-bg-panel/40 px-2 py-1"
+                    >
+                      <span
+                        className="inline-block h-4 w-4 rounded-sm ring-1 ring-black/10 dark:ring-white/10"
+                        style={{ backgroundColor: `#${ex.hex}` }}
+                        aria-hidden
+                      />
+                      <span className="font-mono font-semibold text-text">{ex.hex}</span>
+                      <span className="text-xs text-text-muted">— {ex.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-1 text-xs text-text-muted">
+                    You don't need to be a color expert to play Wurple. Just use the feedback tiles to guide your guesses!
                 </p>
               </div>
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="grid gap-3">
-                <div className="rounded-xl bg-bg-soft p-3">
+            <div className="space-y-2">
+              <div className="grid gap-2">
+                <div className="rounded-xl bg-bg-soft p-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
                     Easy
                   </div>
-                  <p className="mt-1">
-                    No repeated characters. Maximum of 6 guesses to find the answer.
+                  <p className="text-text-muted">
+                    No repeated characters.{" "}
+                    <span className="font-semibold text-text">6 guesses</span> max.
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-bg-soft p-3">
+                <div className="rounded-xl bg-bg-soft p-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
                     Challenge
                   </div>
-                  <p className="mt-1">
-                    Repeats characters are allowed. No maximum number of guesses. 
+                  <p className="text-text-muted">
+                    Repeats allowed. No guess limit. Includes{" "}
+                    <span className="font-semibold text-text">Distance</span> feedback
+                    to help you converge.
                   </p>
                 </div>
-
               </div>
 
-              <div className="rounded-xl bg-bg-soft p-3">
+              <p className="text-xs text-text-muted">
+                There are two modes to suit different play styles and skill levels. Each mode has its own daily puzzle.
+              </p>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-2">
+              <div className="rounded-xl bg-bg-soft p-2">
                 <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
-                  Ratings (Challenge Mode)
+                  Ratings (Challenge)
                 </div>
-                <p className="mt-1 text-text-muted">
-                  Your rating is based on how many guesses it took to solve the puzzle.
+
+                <p className="text-text-muted">
+                  Rating is based on guesses to solve:
                 </p>
 
-                <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
-                  {CHALLENGE_RATINGS.map((r, i) => (
+                <ul className="ml-4 list-disc space-y-1 text-text-muted">
+                  {CHALLENGE_RATINGS.map((r: challengeRatingLabel, i) => (
                     <li key={i}>
+                      {Number.isFinite(r.max) && <>{r.max} or fewer: </>}
+                      {r.min != null && <>{r.min} or more: </>}
                       <span className="font-semibold text-text">{r.label}</span>
-                      {Number.isFinite(r.max) && <> — {r.max} guesses or fewer</>}
+                    
                     </li>
                   ))}
                 </ul>
 
-                <p className="mt-2 text-xs text-text-muted">
+                <p className="mt-1 text-xs text-text-muted">
                   Ratings may evolve as the game grows.
                 </p>
               </div>
@@ -202,7 +265,7 @@ export default function RulesModal({ open, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-black/10 px-5 py-4 dark:border-white/10">
+        <div className="shrink-0 flex items-center justify-between gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
           {/* Dots */}
           <div className="flex items-center gap-2">
             {Array.from({ length: totalSteps }).map((_, i) => (
@@ -218,7 +281,7 @@ export default function RulesModal({ open, onClose }: Props) {
             ))}
           </div>
 
-          {/* Nav buttons */}
+          {/* Nav */}
           <div className="flex items-center gap-2">
             <button
               type="button"

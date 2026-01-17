@@ -8,16 +8,27 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "hangman:schedule": "pnpm -C packages/db exec tsx ../../scripts/generate-hangman-schedule.ts --days=30",
+    "hangman:schedule:365": "ts-node -P tsconfig.scripts.json scripts/generate-hangman-schedule.ts --days=365"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.19.27",
+    "@prisma/adapter-pg": "^7.2.0",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^20.19.30",
+    "@types/pg": "^8.16.0",
     "autoprefixer": "^10.4.23",
-    "eslint": "^9",
-    "turbo": "^2.7.3",
+    "eslint": "^9.39.2",
+    "pg": "^8.17.1",
+    "prisma": "^7.2.0",
+    "tsx": "^4.21.0",
+    "turbo": "^2.7.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.52.0"
+    "typescript-eslint": "^8.53.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.2.0",
+    "dotenv": "^17.2.3"
   }
 }

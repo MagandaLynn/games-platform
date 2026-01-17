@@ -8,8 +8,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
-  }
-,
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
@@ -17,8 +16,11 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "dependencies": {
+    "@playseed/db": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.17"
   }
 }

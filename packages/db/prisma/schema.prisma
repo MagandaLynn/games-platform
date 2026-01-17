@@ -1,17 +1,57 @@
-// packages/db/prisma/schema.prisma
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+model HangmanDailyInstance {
+  id        String        @id @default(cuid())
+  date      DateTime
+  mode      String
+  puzzleId  String
+  createdAt DateTime      @default(now())
+  puzzle    HangmanPuzzle @relation(fields: [puzzleId], references: [id])
+  plays     HangmanPlay[]
+
+  @@unique([date, mode], name: "date_mode")
+  @@index([mode, date])
+}
+
+model HangmanPlay {
+  id           String               @id @default(cuid())
+  instanceId   String
+  sessionId    String
+  userId       String?
+  status       String               @default("playing")
+  wrongGuesses Int                  @default(0)
+  guessed      String               @default("")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  instance     HangmanDailyInstance @relation(fields: [instanceId], references: [id])
+
+  @@unique([instanceId, sessionId], name: "instance_session")
+  @@index([sessionId])
+  @@index([userId])
+}
+
 model HangmanPuzzle {
-  id         String   @id @default(cuid())
-  slug       String   @unique              // e.g. "2026-01-15" or "daily-2026-01-15"
-  phrase     String                        // the answer phrase
-  hint       String?                       // optional hint
-  createdAt  DateTime @default(now())
+  id              String                 @id @default(cuid())
+  phrase          String
+  hint            String?
+  category        String?
+  isDailyEligible Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+  instances       HangmanDailyInstance[]
+  dailySchedule   HangmanDailySchedule?
+}
+
+model HangmanDailySchedule {
+  id        String        @id @default(cuid())
+  date      DateTime      @unique
+  puzzleId  String        @unique
+  createdAt DateTime      @default(now())
+  puzzle    HangmanPuzzle @relation(fields: [puzzleId], references: [id])
 }

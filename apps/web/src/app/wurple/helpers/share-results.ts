@@ -5,14 +5,18 @@ const TILE_EMOJI: Record<TileStatus, string> = {
   present: "🟨",
   absent: "⬛",
 };
+export type challengeRatingLabel = {
+  max: number;
+  min?: number;
+  label: string;
+};
 export const CHALLENGE_RATINGS = [
   { max: 5,  label: "Chromatic Savant 🧠✨" },
   { max: 8,  label: "Color Whisperer 🎯" },
   { max: 12, label: "Dialed In 🔥" },
   { max: 18, label: "Steady Solver 🧩" },
   { max: 30, label: "Persistent 💪" },
-  { max: 50, label: "Unstoppable 🏃" },
-  { max: Infinity, label: "You Refused to Quit 🫡" },
+  { max: Infinity, label: "You Refused to Quit 🫡", min: 31 },
 ] as const;
 
 export function challengeRating(guesses: number) {

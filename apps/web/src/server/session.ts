@@ -1,9 +1,8 @@
 import { cookies } from "next/headers";
 
-const SESSION_COOKIE = "sid";
-
-export async function getSessionId(): Promise<string | null> {
+export async function requireSessionId(): Promise<string> {
   const store = await cookies();
-  const cookie = store.get(SESSION_COOKIE);
-  return cookie ? cookie.value : null;
+  const sid = store.get("sid")?.value;
+  if (!sid) throw new Error("Missing sid cookie");
+  return sid;
 }

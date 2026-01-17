@@ -30,4 +30,23 @@ describe("hangman engine", () => {
     const r2 = getResult(s);
     expect(r2.wrongGuesses).toBe(r1.wrongGuesses);
   });
+    it("does not increment wrongGuesses on repeated guess (default ignoreRepeatedGuesses=true)", () => {
+    const s0 = createInitialState("ABC", { maxWrong: 6 }); // default ignoreRepeatedGuesses
+    const s1 = applyGuess(s0, "Z"); // wrong
+    expect(s1.wrongGuesses).toBe(1);
+
+    const s2 = applyGuess(s1, "Z"); // repeat
+    expect(s2.wrongGuesses).toBe(1);
+    expect(s2.status).toBe("playing");
+    expect(s2.error).toBeTruthy(); // "Already guessed"
+  });
+
+  it("repeated guess does not change status (still playing)", () => {
+    const s0 = createInitialState("A", { maxWrong: 6 });
+    const s1 = applyGuess(s0, "B"); // wrong
+    const s2 = applyGuess(s1, "B"); // repeat
+
+    expect(s2.status).toBe("playing");
+    expect(s2.wrongGuesses).toBe(s1.wrongGuesses);
+  });
 });
