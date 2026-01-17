@@ -67,3 +67,6 @@ coverage
 # Misc
 # ================================
 *.tsbuildinfo
+
+packages/db/src/generated/
+

@@ -1,8 +1,10 @@
 {
   "extends": "../../tooling/tsconfig/base.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "baseUrl": "."
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false
   },
-  "include": ["src", "src/games/index.ts"]
+  "include": ["src"]
 }

@@ -1,7 +1,13 @@
+
 {
-  "extends": "../../tooling/tsconfig/base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "Bundler",
+    "strict": true
   },
-  "include": ["src", "generated", "prisma.config.ts"]
+  "include": ["src"]
 }
