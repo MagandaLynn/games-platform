@@ -82,7 +82,7 @@ function SuccessPageContent() {
     <div className="mx-auto w-full max-w-xl px-4 py-8">
       <h1 className="text-2xl font-extrabold">Puzzle ready 🎉</h1>
       <p className="mt-2 text-sm text-text-muted">
-        Share this link with a friend (or keep it for later).
+        Share this link with a friend.
       </p>
 
       <div className="mt-6 space-y-3">
