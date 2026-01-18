@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -10,7 +11,7 @@ function absUrl(path: string) {
   return new URL(path, window.location.origin).toString();
 }
 
-export default function CreateHangmanSuccessPage() {
+function SuccessPageContent() {
   const params = useSearchParams();
   const instanceId = params.get("instanceId");
 
@@ -133,5 +134,17 @@ export default function CreateHangmanSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreateHangmanSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto w-full max-w-xl px-4 py-8">
+        <h1 className="text-2xl font-extrabold">Loading...</h1>
+      </div>
+    }>
+      <SuccessPageContent />
+    </Suspense>
   );
 }
