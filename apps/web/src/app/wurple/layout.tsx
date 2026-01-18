@@ -1,15 +1,47 @@
-import type { Metadata } from 'next'
-import WurpleHeader from './components/WurpleHeader'
-import WurpleFooter from './components/WurpleFooter'
-import GameBar from '../appComponents/GameBar'
+"use client";
 
-export const metadata: Metadata = {
-    title: 'Wurple',
-    description: 'A daily color-logic puzzle',
-    icons: {
-        icon: '/favicon.ico',
-        apple: '/apple-touch-icon.png',
-    },
+import { useState, Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import GameBar from "../appComponents/GameBar";
+import RulesModal from "./components/RulesModal";
+import StatsModal from "./components/StatsModal";
+import { loadStats } from "./helpers/statsStore";
+
+function WurpleLayoutContent({ children }: { children: React.ReactNode }) {
+    const [rulesOpen, setRulesOpen] = useState(false);
+    const [statsOpen, setStatsOpen] = useState(false);
+    const [statsMode, setStatsMode] = useState<"easy" | "challenge">("easy");
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    
+    const mode = (searchParams.get('mode') as "easy" | "challenge") || "easy";
+    const isArchive = pathname?.includes('/wurple/archive');
+    const subtitle = isArchive ? "Archive" : "Today's Puzzle";
+    const stats = typeof window !== 'undefined' ? loadStats() : null;
+
+    return (
+        <div className="flex flex-col wurple-layout">
+            <GameBar
+                backHref="/"
+                context={{ title: "Wurple", subtitle, mode }}
+                onOpenRules={() => setRulesOpen(true)}
+                onOpenStats={() => setStatsOpen(true)}
+            />
+            <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+            {stats && (
+                <StatsModal
+                    open={statsOpen}
+                    onClose={() => setStatsOpen(false)}
+                    stats={stats}
+                    mode={statsMode}
+                    onModeChange={setStatsMode}
+                />
+            )}
+            <div className="flex-1 overflow-auto">
+                {children}
+            </div>
+        </div>
+    )
 }
 
 export default function WurpleLayout({
@@ -18,8 +50,8 @@ export default function WurpleLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="wurple-layout">
-            {children}
-        </div>
-    )
+        <Suspense fallback={<div className="flex flex-col wurple-layout">Loading...</div>}>
+            <WurpleLayoutContent>{children}</WurpleLayoutContent>
+        </Suspense>
+    );
 }

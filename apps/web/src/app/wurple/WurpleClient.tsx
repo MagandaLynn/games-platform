@@ -18,8 +18,9 @@ import { useToast } from "../hooks/useToast";
 import Toast from "../appComponents/Toast";
 import { recordCompletion } from "./helpers/statsStore";
 
-export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode, setStats }: { initialDaily: DailyResponse, setOpenRules?: React.Dispatch<React.SetStateAction<boolean>>, mode: WurpleMode, setMode: React.Dispatch<React.SetStateAction<WurpleMode>>, setStats: React.Dispatch<React.SetStateAction<ReturnType<typeof recordCompletion> | null>> }) {
-  
+export default function WurpleClient({ initialDaily}: { initialDaily: DailyResponse }) {
+  const [mode, setMode] = useState<WurpleMode>("easy");
+  // const [stats, setStats] = useState<ReturnType<typeof recordCompletion> | null>(null);
   const [seed] = useState(initialDaily.seed);
 
   const [rulesVersion, setRulesVersion] = useState(initialDaily.rulesVersion);
@@ -142,7 +143,7 @@ export default function WurpleClient({ initialDaily, setOpenRules, mode, setMode
   const guessCount = guesses.length;  // number of guesses taken
 
   const updated = recordCompletion(seed, mode, status, guessCount);
-  setStats(updated);
+
 }, [gameOver, status]);
 
   async function submitGuess() {

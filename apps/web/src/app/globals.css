@@ -35,6 +35,15 @@
   --shadow-chip: 0 8px 18px rgba(15, 23, 42, 0.14);
 }
 
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
 /* Dark mode overrides */
 .dark {
   --color-bg-app: #0b0e14;
@@ -93,4 +102,8 @@
 @keyframes revealStatic {
   0%   { transform: rotateX(180deg); }
   100% { transform: rotateX(180deg); }
+}
+.emoji-safe {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }

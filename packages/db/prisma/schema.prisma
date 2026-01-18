@@ -28,6 +28,10 @@ model HangmanPlay {
   status       String               @default("playing")
   wrongGuesses Int                  @default(0)
   guessed      String               @default("")
+
+  hintUsed     Boolean              @default(false)
+  hintUsedAt   DateTime?
+
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   instance     HangmanDailyInstance @relation(fields: [instanceId], references: [id])
@@ -36,6 +40,7 @@ model HangmanPlay {
   @@index([sessionId])
   @@index([userId])
 }
+
 
 model HangmanPuzzle {
   id              String                 @id @default(cuid())
