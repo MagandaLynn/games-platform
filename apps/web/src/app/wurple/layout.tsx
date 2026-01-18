@@ -1,24 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import GameBar from "../appComponents/GameBar";
 import RulesModal from "./components/RulesModal";
 import StatsModal from "./components/StatsModal";
 import { loadStats } from "./helpers/statsStore";
 
-export default function WurpleLayout({
-    children,
-}: {
-    children: React.ReactNode
-}) {
+function WurpleLayoutContent({ children }: { children: React.ReactNode }) {
     const [rulesOpen, setRulesOpen] = useState(false);
     const [statsOpen, setStatsOpen] = useState(false);
     const [statsMode, setStatsMode] = useState<"easy" | "challenge">("easy");
     const pathname = usePathname();
     const searchParams = useSearchParams();
     
-    const mode = (searchParams.get('mode') as "easy" | "challenge") || "";
+    const mode = (searchParams.get('mode') as "easy" | "challenge") || "easy";
     const isArchive = pathname?.includes('/wurple/archive');
     const subtitle = isArchive ? "Archive" : "Today's Puzzle";
     const stats = typeof window !== 'undefined' ? loadStats() : null;
@@ -46,4 +42,16 @@ export default function WurpleLayout({
             </div>
         </div>
     )
+}
+
+export default function WurpleLayout({
+    children,
+}: {
+    children: React.ReactNode
+}) {
+    return (
+        <Suspense fallback={<div className="flex flex-col wurple-layout">Loading...</div>}>
+            <WurpleLayoutContent>{children}</WurpleLayoutContent>
+        </Suspense>
+    );
 }
