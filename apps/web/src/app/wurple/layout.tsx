@@ -14,7 +14,7 @@ function WurpleLayoutContent({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     
-    const mode = (searchParams.get('mode') as "easy" | "challenge") || "easy";
+    const mode = (searchParams.get('mode')) || "";
     const isArchive = pathname?.includes('/wurple/archive');
     const subtitle = isArchive ? "Archive" : "Today's Puzzle";
     const stats = typeof window !== 'undefined' ? loadStats() : null;
