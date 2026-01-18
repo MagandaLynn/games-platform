@@ -1,11 +1,8 @@
 // apps/web/src/app/wurple/page.tsx
 
 import { headers } from "next/headers";
-import WurpleClient from "./WurpleClient";
 import Link from "next/link";
-import GameBar from "../appComponents/GameBar";
-import RulesModal from "./components/RulesModal";
-import { WurpleClientContainer } from "./WurpleClientContainer";
+import WurpleClient from "./WurpleClient";
 
 type Props = {
   searchParams?: Promise<{ seed?: string; mode?: string }>;
@@ -68,7 +65,7 @@ if (!res.ok) {
   return (
     <main>
 
-      <WurpleClientContainer initialDaily={initialDaily} />
+      <WurpleClient initialDaily={initialDaily}  />
           <Link
         href="/wurple/archive"
         className="underline opacity-80 hover:opacity-100 flex justify-center mt-6 block"

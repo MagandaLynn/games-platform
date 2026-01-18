@@ -2,7 +2,6 @@
 import { headers } from "next/headers";
 import WurpleClient from "../../WurpleClient";
 import Link from "next/link";
-import { ArchiveGameContainer } from "../ArchiveGameContainer";
 
 type Props = {
   params: Promise<{ date: string }>;
@@ -45,11 +44,22 @@ const res = await fetch(url.toString(), {
 
   return (
     <main className=" bg-bg-app text-text">
-      
+        <WurpleClient initialDaily={initialDaily} />
+          <div className="mb-8 mt-2 flex flex-col items-center gap-3 text-sm">
+          <Link
+            href="/wurple"
+            className="text-link underline underline-offset-4 opacity-80 hover:opacity-100 hover:text-link-hover transition"
+          >
+            Go to Today's Puzzle
+          </Link>
 
-        {/* Game */}
-        <ArchiveGameContainer initialDaily={initialDaily} date={date} />
-   
+          <Link
+            href="/wurple/archive"
+            className="text-link underline underline-offset-4 opacity-80 hover:opacity-100 hover:text-link-hover transition"
+          >
+            Return to Archive Calendar
+          </Link>
+        </div>
     </main>
   );
 }

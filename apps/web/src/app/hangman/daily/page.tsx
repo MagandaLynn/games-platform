@@ -9,6 +9,8 @@ async function baseUrl() {
 }
 
 import DailyHangmanClient from "./DailyHangmanClient";
+import { HintReveal } from "../components/HintReveal";
+import { DailyContainer } from "../components/DailyContainer";
 
 export default async function DailyHangmanPage() {
   const base = await baseUrl();
@@ -32,14 +34,15 @@ export default async function DailyHangmanPage() {
     hint: string | null;
     category: string | null;
   };
+  console.log("DailyHangmanPage instance:", instance);
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 py-8 px-4">
-      <h1>Daily Hangman</h1>
-      <p><strong>Category:</strong> {instance.category ?? "—"}</p>
-      {instance.hint && <p><strong>Hint:</strong> {instance.hint}</p>}
+    <main >
+      <DailyHangmanClient instanceId={instance.instanceId} category={instance.category} hint={instance.hint} />
 
-      <DailyHangmanClient instanceId={instance.instanceId} />
+      <div>
+    
+    </div>
     </main>
   );
 }

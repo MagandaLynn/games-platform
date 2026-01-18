@@ -19,16 +19,18 @@ const GAMES: Game[] = [
     description: "Guess the 6-digit hex color. Daily puzzles in easy and challenge modes.",
     href: "/wurple",
     status: "live",
-    imageSrc: "/games/wurple3.png",
+    imageSrc: "/games/wurple.png",
     imageAlt: "Wurple game",
   },
   {
     id: "hangman",
     title: "Hangman",
     description: "Create puzzles and challenge friends to solve them.",
-    href: "#",
+    href: "/hangman/daily",
     status: "coming-soon",
-  },
+    imageSrc: "/games/hangman.png",
+    imageAlt: "Hangman game"
+  }
 ];
 
 function StatusPill({ status }: { status?: Game["status"] }) {

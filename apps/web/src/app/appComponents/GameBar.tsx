@@ -8,7 +8,7 @@ type GameStatus = "playing" | "won" | "lost";
 export type GameBarContext = {
   title?: string; // e.g. "Wurple"
   subtitle?: string; // e.g. "Today's Puzzle" | "Archive" | "Jan 6, 2026"
-  mode?: GameMode;
+  mode?: string; // e.g. "easy" | "challenge"
   status?: GameStatus;
   guesses?: { used: number; max: number | null };
 };
@@ -24,20 +24,20 @@ type Props = {
   onOpenSettings?: () => void;
 
   // Optional: mode picker in header
-  onSetMode?: (mode: GameMode) => void;
+  onSetMode?: (mode: string) => void;
 };
 
 function ModeChip({
   mode,
   onSetMode,
 }: {
-  mode: GameMode;
-  onSetMode?: (mode: GameMode) => void;
+  mode: string;
+  onSetMode?: (mode: string) => void;
 }) {
   if (!onSetMode) {
     return (
       <span className="rounded-full bg-bg-soft px-2 py-1 text-xs font-semibold text-text">
-        {mode === "easy" ? "Easy" : "Challenge"}
+        {mode.charAt(0).toUpperCase() + mode.slice(1)}
       </span>
     );
   }

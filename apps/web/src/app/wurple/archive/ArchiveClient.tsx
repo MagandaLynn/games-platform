@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import WurpleArchiveCalendar from "./WurpleArchiveCalendar";
 import { useWurpleArchive } from "../hooks/useWurpleArchive";
-import { ArchiveCalendarContainer } from "./ArchiveCalendarContainer";
 
 export default function ArchiveClient() {
   const router = useRouter();
@@ -31,7 +30,7 @@ export default function ArchiveClient() {
   }, [archiveByDate]);
 
   return (
-    <ArchiveCalendarContainer
+    <WurpleArchiveCalendar
       archiveByDate={calendarData}
       onSelectDate={(dateKey) => {
         setSelectedDateKey(dateKey);
