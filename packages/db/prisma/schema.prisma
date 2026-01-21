@@ -60,3 +60,4 @@ model HangmanDailySchedule {
   createdAt DateTime      @default(now())
   puzzle    HangmanPuzzle @relation(fields: [puzzleId], references: [id])
 }
+

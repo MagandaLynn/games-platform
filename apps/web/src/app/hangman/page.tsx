@@ -1,21 +1,48 @@
-// apps/web/src/app/hangman/page.tsx
-import { redirect } from "next/navigation";
+import Link from "next/link";
 
-export default async function HangmanDailyEntry() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/hangman/create-instance`, {
-    method: "GET",
-    cache: "no-store",
-  });
+export default function HangmanLandingPage() {
+  return (
+    <main style={{ maxWidth: 640, margin: "0 auto", padding: "2rem" }}>
+      <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
+        Hangman
+      </h1>
 
-  if (!res.ok) {
-    // you can render an error page instead if you prefer
-    return (
-      <pre className="whitespace-pre-wrap text-sm">
-        {`Failed to create daily instance (${res.status}).\n\n${await res.text()}`}
-      </pre>
-    );
-  }
+      <p style={{ marginBottom: "2rem", opacity: 0.8 }}>
+        Create your own puzzles or play the daily challenge.
+      </p>
 
-  const data = (await res.json()) as { instanceId: string };
-  redirect(`/hangman/i/${data.instanceId}`);
+      <div style={{ display: "grid", gap: "1rem" }}>
+        {/* Primary */}
+        <Link href="/hangman/create">
+          <button
+            style={{
+              width: "100%",
+              padding: "1rem",
+              fontSize: "1.1rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Create a Custom Puzzle
+          </button>
+        </Link>
+
+        {/* Secondary */}
+        <Link href="/hangman/daily">
+          <button
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              fontSize: "0.95rem",
+              opacity: 0.8,
+              cursor: "pointer",
+            }}
+          >
+            Play Today's Daily
+          </button>
+        </Link>
+      </div>
+    </main>
+  );
 }
+
