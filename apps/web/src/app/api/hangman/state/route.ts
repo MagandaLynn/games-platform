@@ -1,6 +1,7 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+export const runtime = "nodejs";
 
 function canonicalizeGuessed(s: string) {
   return Array.from(new Set((s ?? "").split("").filter(Boolean))).sort().join("");

@@ -2,6 +2,8 @@ import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
 
+export const runtime = "nodejs";
+
 function normalizeLetter(input: string): string | null {
   const s = String(input ?? "").trim().toUpperCase();
   if (s.length !== 1) return null;

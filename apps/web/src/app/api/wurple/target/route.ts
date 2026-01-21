@@ -1,4 +1,5 @@
 import { games } from "@playseed/game-core";
+export const runtime = "nodejs";
 
 function seedFromRequest(url: URL) {
   const seed = url.searchParams.get("seed");

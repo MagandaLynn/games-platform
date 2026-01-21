@@ -1,5 +1,6 @@
 import { prisma } from "@playseed/db";
 import { utcMidnight } from "@/server/date";
+export const runtime = "nodejs";
 
 function normalizePhrase(raw: string) {
   // Keep emojis/numbers/punctuation. Just trim + collapse whitespace + uppercase.

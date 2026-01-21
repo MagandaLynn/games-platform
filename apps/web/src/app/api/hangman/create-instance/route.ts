@@ -1,5 +1,6 @@
 import { prisma } from "@playseed/db";
 import { utcMidnight } from "@/server/date";
+export const runtime = "nodejs";
 
 type Mode = "daily" | "custom";
 

@@ -1,5 +1,6 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
