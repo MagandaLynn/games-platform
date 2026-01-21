@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "@playseed/db";
+export const runtime = "nodejs";
 
 async function main() {
   const puzzles = [
