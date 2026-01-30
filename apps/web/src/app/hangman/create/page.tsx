@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@playseed/db";
 import { utcMidnight } from "@/server/date";
+export const runtime = "nodejs";
 
 function normalizePhrase(raw: string) {
   return raw.trim().replace(/\s+/g, " ").toUpperCase();

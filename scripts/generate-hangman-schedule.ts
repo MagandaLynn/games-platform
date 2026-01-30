@@ -32,6 +32,7 @@ function utcMidnight(date = new Date()): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
+
 function addDaysUTC(d: Date, days: number): Date {
   const out = new Date(d);
   out.setUTCDate(out.getUTCDate() + days);

@@ -10,7 +10,8 @@
     "test": "turbo test",
     "format": "prettier -w .",
     "hangman:schedule": "pnpm -C packages/db exec tsx ../../scripts/generate-hangman-schedule.ts --days=30",
-    "hangman:schedule:365": "ts-node -P tsconfig.scripts.json scripts/generate-hangman-schedule.ts --days=365"
+    "hangman:schedule:365": "ts-node -P tsconfig.scripts.json scripts/generate-hangman-schedule.ts --days=365",
+    "hangman:import-words": "pnpm -C packages/db exec tsx ../../scripts/import-hangman-words.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

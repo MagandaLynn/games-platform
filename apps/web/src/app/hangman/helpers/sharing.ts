@@ -24,6 +24,8 @@ export function buildShareText({
     return stages[idx];
   };
 
+  console.log('mode:', mode);
+
   const title = mode === "daily" ? "Daily Hangman" : "Custom Hangman";
   const hintText = hintUsed ? " (hint used)" : "";
 

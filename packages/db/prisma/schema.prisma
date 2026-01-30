@@ -21,26 +21,25 @@ model HangmanDailyInstance {
 }
 
 model HangmanPlay {
-  id           String               @id @default(cuid())
+  id           String  @id @default(cuid())
   instanceId   String
   sessionId    String
   userId       String?
-  status       String               @default("playing")
-  wrongGuesses Int                  @default(0)
-  guessed      String               @default("")
+  status       String  @default("playing")
+  wrongGuesses Int     @default(0)
+  guessed      String  @default("")
 
-  hintUsed     Boolean              @default(false)
-  hintUsedAt   DateTime?
+  hintUsed   Boolean   @default(false)
+  hintUsedAt DateTime?
 
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  instance     HangmanDailyInstance @relation(fields: [instanceId], references: [id])
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  instance  HangmanDailyInstance @relation(fields: [instanceId], references: [id])
 
   @@unique([instanceId, sessionId], name: "instance_session")
   @@index([sessionId])
   @@index([userId])
 }
-
 
 model HangmanPuzzle {
   id              String                 @id @default(cuid())
@@ -51,6 +50,8 @@ model HangmanPuzzle {
   createdAt       DateTime               @default(now())
   instances       HangmanDailyInstance[]
   dailySchedule   HangmanDailySchedule?
+
+  savedBy SavedHangmanPuzzle[] // ✅ add this
 }
 
 model HangmanDailySchedule {
@@ -59,4 +60,20 @@ model HangmanDailySchedule {
   puzzleId  String        @unique
   createdAt DateTime      @default(now())
   puzzle    HangmanPuzzle @relation(fields: [puzzleId], references: [id])
+}
+
+model SavedHangmanPuzzle {
+  id             String   @id @default(cuid())
+  puzzleId       String
+  userId         String?
+  sessionId      String?
+  savedAt        DateTime @default(now())
+  lastInstanceId String?
+
+  puzzle HangmanPuzzle @relation(fields: [puzzleId], references: [id])
+
+  @@unique([puzzleId, userId], name: "puzzleId_userId")
+  @@unique([puzzleId, sessionId], name: "puzzleId_sessionId")
+  @@index([userId])
+  @@index([sessionId])
 }

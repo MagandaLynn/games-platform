@@ -2,6 +2,8 @@ import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
 
+export const runtime = "nodejs";
+
 function normalizeLetter(input: string): string | null {
   const s = String(input ?? "").trim().toUpperCase();
   if (s.length !== 1) return null;
@@ -29,9 +31,12 @@ function computeLetterBuckets(phrase: string, guessed: string[]) {
   return { correctLetters, wrongLetters };
 }
 
-function toPublic(result: any, phrase: string) {
+function toPublic(result: any, phrase: string, mode: string) {
   const guessed = Array.isArray(result.guessed) ? (result.guessed as string[]) : [];
   const { correctLetters, wrongLetters } = computeLetterBuckets(phrase, guessed);
+
+  const status = result.status as "playing" | "won" | "lost";
+  const isOver = status !== "playing";
 
   return {
     masked: result.masked,
@@ -39,10 +44,12 @@ function toPublic(result: any, phrase: string) {
     remaining: result.remaining,
     wrongGuesses: result.wrongGuesses,
     maxWrong: result.maxWrong,
-    status: result.status,
+    status,
     isComplete: result.isComplete,
     correctLetters,
     wrongLetters,
+    solution: isOver ? phrase : null,
+    mode,
   };
 }
 
@@ -101,7 +108,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       instanceId,
-      play: toPublic(current, instance.puzzle.phrase),
+      play: toPublic(current, instance.puzzle.phrase, instance.mode),
     });
   }
 
@@ -122,6 +129,6 @@ export async function POST(req: Request) {
 
   return Response.json({
     instanceId,
-    play: toPublic(result, instance.puzzle.phrase),
+    play: toPublic(result, instance.puzzle.phrase, instance.mode),
   });
 }

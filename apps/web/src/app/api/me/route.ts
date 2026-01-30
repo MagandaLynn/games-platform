@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+export const runtime = "nodejs";
 
 export async function GET() {
   const { userId } = await auth();

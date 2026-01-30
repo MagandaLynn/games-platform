@@ -2,6 +2,7 @@
 import { prisma } from "@playseed/db";
 import DailyHangmanClient from "../../daily/DailyHangmanClient";
 import { notFound } from "next/navigation";
+export const runtime = "nodejs";
 
 export default async function HangmanInstancePage({
   params,

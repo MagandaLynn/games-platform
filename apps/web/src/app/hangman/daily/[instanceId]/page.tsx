@@ -1,6 +1,7 @@
 // apps/web/src/app/hangman/i/[instanceId]/page.tsx
 import DailyHangmanClient from "../../daily/DailyHangmanClient";
 import { prisma } from "@playseed/db";
+export const runtime = "nodejs";
 
 export default async function HangmanByInstancePage({
   params,

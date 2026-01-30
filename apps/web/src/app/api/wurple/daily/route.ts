@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { games } from "@playseed/game-core";
 import { DailyResponse } from "@/app/wurple/helpers/types";
+export const runtime = "nodejs";
 
 
 const RULES_VERSION = 1;

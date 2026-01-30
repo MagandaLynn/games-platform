@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { games } from "@playseed/game-core";
+export const runtime = "nodejs";
 
 const RULES_VERSION = 1;
 
