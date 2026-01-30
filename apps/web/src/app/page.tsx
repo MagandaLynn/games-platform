@@ -26,8 +26,8 @@ const GAMES: Game[] = [
     id: "hangman",
     title: "Hangman",
     description: "Create puzzles and challenge friends to solve them.",
-    href: "/hangman/daily",
-    status: "coming-soon",
+    href: "/hangman",
+    status: "beta",
     imageSrc: "/games/hangman.png",
     imageAlt: "Hangman game"
   }
