@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+
 function absUrl(path: string) {
   // Works locally + prod, assuming browser context
   return new URL(path, window.location.origin).toString();

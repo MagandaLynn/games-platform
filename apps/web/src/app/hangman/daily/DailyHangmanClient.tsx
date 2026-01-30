@@ -8,6 +8,7 @@ import { upsertHangmanRecord } from "../helpers/hangmanStats";
 import { buildShareText } from "../helpers/sharing";
 import Toast from "@/app/appComponents/Toast";
 import { useToast } from "@/app/hooks/useToast";
+import { redirect } from "next/navigation";
 
 type Play = {
   masked: string;
@@ -18,13 +19,17 @@ type Play = {
   status: "playing" | "won" | "lost";
   isComplete: boolean;
 
-  // from API
   correctLetters: string[];
   wrongLetters: string[];
 
-  // NEW: persisted on HangmanPlay
   hintUsed: boolean;
   hintUsedAt?: string | null;
+
+  // ✅ NEW (null while playing)
+  solution?: string | null;
+
+  // ✅ handy for share correctness
+  mode?: "daily" | "custom" | string;
 };
 
 export default function DailyHangmanClient({
@@ -38,14 +43,16 @@ export default function DailyHangmanClient({
 }) {
   const [play, setPlay] = useState<Play | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showHint, setShowHint] = useState(play?.hintUsed ?? false);
+
+  const [showHint, setShowHint] = useState(false);
   const [copied, setCopied] = useState(false);
-  const gameOver = play?.status === "won" || play?.status === "lost";
 
-  const { message, showToast } = useToast();
+  const { message } = useToast();
 
-  // prevent double-saving stats on rerenders
   const savedResultRef = useRef(false);
+  const [showAnswer, setShowAnswer] = useState(false)
+
+  const gameOver = play?.status === "won" || play?.status === "lost";
 
   const loadState = useCallback(async () => {
     setError(null);
@@ -66,6 +73,12 @@ export default function DailyHangmanClient({
     const data = JSON.parse(text);
     setPlay(data.play as Play);
   }, [instanceId]);
+
+  // ✅ keep showHint synced after play loads / updates
+  useEffect(() => {
+    if (!play) return;
+    setShowHint(!!play.hintUsed);
+  }, [play?.hintUsed]);
 
   const onGuess = useCallback(
     async (letter: string) => {
@@ -95,11 +108,14 @@ export default function DailyHangmanClient({
     [instanceId, play]
   );
 
-  // NEW: reveal hint + persist to DB for this play
   const onRevealHint = useCallback(async () => {
-    if (!hint) return; // no hint exists
+    if (!hint) return;
     if (!play) return;
-    if (play.hintUsed) return; // already persisted
+    if (play.hintUsed) {
+      setShowHint(true);
+      return;
+    }
+
     setShowHint(true);
     setError(null);
 
@@ -116,7 +132,6 @@ export default function DailyHangmanClient({
       return;
     }
 
-    // optimistic local update (or parse returned play)
     setPlay((prev) =>
       prev ? { ...prev, hintUsed: true, hintUsedAt: new Date().toISOString() } : prev
     );
@@ -126,7 +141,6 @@ export default function DailyHangmanClient({
     void loadState();
   }, [loadState]);
 
-  // Prefer server buckets; fallback heuristic only if buckets are missing
   const correctLetters = useMemo(() => {
     if (!play) return [] as string[];
     if (Array.isArray(play.correctLetters)) return play.correctLetters;
@@ -147,7 +161,6 @@ export default function DailyHangmanClient({
     return (play.guessed ?? []).filter((ch) => !revealedSet.has(ch));
   }, [play]);
 
-  // Keyboard listener (only while playing)
   useEffect(() => {
     if (!play) return;
     if (play.status !== "playing") return;
@@ -163,7 +176,6 @@ export default function DailyHangmanClient({
     return () => window.removeEventListener("keydown", handler);
   }, [play, onGuess]);
 
-  // Save stats exactly once when completed
   useEffect(() => {
     if (!play) return;
     if (play.status === "playing") return;
@@ -181,7 +193,6 @@ export default function DailyHangmanClient({
     });
   }, [play, instanceId]);
 
-  // If user starts a new puzzle instanceId later, reset the guard
   useEffect(() => {
     savedResultRef.current = false;
   }, [instanceId]);
@@ -203,19 +214,28 @@ export default function DailyHangmanClient({
         />
 
         <PhraseTiles masked={play.masked} revealDelayMs={300} />
-      </div>
-{gameOver && (
-        <div className="mt-5 text-center">
+
+        {/* ✅ show answer after win/loss */}
+        <div className="flex justify-center m-4">{gameOver && play.solution && <>{showAnswer? (
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+            <div className="text-xs font-semibold text-text-muted">Answer</div>
+            <div className="mt-1 text-lg font-extrabold tracking-wide">{play.solution}</div>
+          </div>
+        ):<button className="px-2 py-1 text-xs font-semibold border transition text-text hover:opacity-90 hover:scale-[1.05] rounded" onClick={()=>setShowAnswer(true)}>Show Answer</button>}</>}
+      </div></div>
+
+      {gameOver && (
+        <div className="mt-5 text-center flex gap-3 justify-center">
           <button
             type="button"
             onClick={async () => {
               const text = buildShareText({
                 wrongGuesses: play.wrongGuesses,
                 maxWrongGuesses: play.wrongGuesses + play.remaining,
-                hintUsed: !!play.hintUsed,    
+                hintUsed: !!play.hintUsed,
                 origin: window.location.origin,
                 instanceId,
-                mode: "daily",   // "daily" | "custom"
+                mode: (play.mode as any) ?? "daily",
               });
 
               await navigator.clipboard.writeText(text);
@@ -225,8 +245,7 @@ export default function DailyHangmanClient({
             className="
               inline-flex items-center justify-center
               rounded-lg px-5 py-3
-              text-base font-extrabold
-              text-white
+              text-base font-extrabold text-white
               bg-easy hover:bg-easyHover
               active:scale-[0.98]
               transition duration-150 ease-out
@@ -238,16 +257,32 @@ export default function DailyHangmanClient({
           >
             Share
           </button>
+          <button
+            type="button"
+            onClick={async () => {
+              redirect(`/hangman/create`);
+              }}
+            className="
+              inline-flex items-center justify-center
+              rounded-lg px-5 py-3
+              text-base font-extrabold text-white
+              bg-challenge hover:bg-challengeHover
+              active:scale-[0.98]
+              transition duration-150 ease-out
+              shadow-sm
+              focus:outline-none
+              focus-visible:ring-2 focus-visible:ring-easy
+              focus-visible:ring-offset-2 focus-visible:ring-offset-bgPanel
+            "
+          >
+            Create your own
+          </button>
 
-          {copied && (
-            <div className="mt-2 text-sm font-semibold text-emerald-500">
-              Copied!
-            </div>
-          )}
+          {copied && <div className="mt-2 text-sm font-semibold text-emerald-500">Copied!</div>}
           {message && <Toast message={message} />}
-
         </div>
       )}
+
       <HangmanKeyboard
         disabled={play.status !== "playing"}
         guessed={play.guessed}

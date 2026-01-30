@@ -1,6 +1,7 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+
 export const runtime = "nodejs";
 
 function canonicalizeGuessed(s: string) {
@@ -26,21 +27,27 @@ function toPublic(result: any, phrase: string) {
   const guessed = Array.isArray(result.guessed) ? (result.guessed as string[]) : [];
   const { correctLetters, wrongLetters } = computeLetterBuckets(phrase, guessed);
 
+  const status = result.status as "playing" | "won" | "lost";
+  const isOver = status !== "playing";
+
   return {
     masked: result.masked,
     guessed,
     remaining: result.remaining,
     wrongGuesses: result.wrongGuesses,
     maxWrong: result.maxWrong,
-    status: result.status,
+    status,
     isComplete: result.isComplete,
     correctLetters,
     wrongLetters,
+
+    // ✅ only reveal solution after completion (win OR loss)
+    solution: isOver ? phrase : null,
   };
 }
 
 export async function POST(req: Request) {
-  try{
+  try {
     const sessionId = await requireSessionId();
     const body = await req.json().catch(() => ({}));
     const instanceId: string | undefined = body.instanceId;
@@ -56,7 +63,6 @@ export async function POST(req: Request) {
     if (!instance) return Response.json({ error: "Instance not found" }, { status: 404 });
 
     // Ensure a play row exists so state always has something backing it
-    // IMPORTANT: now that HangmanPlay has hintUsed/hintUsedAt, we want them in the returned play.
     const play = await prisma.hangmanPlay.upsert({
       where: { instance_session: { instanceId, sessionId } },
       update: {},
@@ -71,6 +77,8 @@ export async function POST(req: Request) {
         guessed: true,
         createdAt: true,
         updatedAt: true,
+
+        // ✅ persisted attempt-level fields
         hintUsed: true,
         hintUsedAt: true,
       },
@@ -114,8 +122,11 @@ export async function POST(req: Request) {
         // ✅ persisted attempt-level fields
         hintUsed: play.hintUsed ?? false,
         hintUsedAt: play.hintUsedAt ? play.hintUsedAt.toISOString() : null,
+
+        // ✅ include mode for share correctness
+        mode: instance.mode,
       },
-  });
+    });
   } catch (e: any) {
     console.error("[hangman/state][POST]", e);
     return Response.json(
