@@ -29,7 +29,7 @@ export default function GuessesDisplay({feedbackHistory, input, status, lastReve
                 return (
                 <div
                     key={`row-${rowIdx}`}
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
+                    className="flex gap-1.5 sm:gap-2 items-center"
                 >
                     {revealed.tiles.map((t, colIdx) => {
                         const isNewest = rowIdx === feedbackHistory.length - 1;
@@ -57,7 +57,7 @@ export default function GuessesDisplay({feedbackHistory, input, status, lastReve
             return (
             <div
                 key={`row-${rowIdx}`}
-                style={{ display: "flex", gap: 8, alignItems: "center" }}
+                className="flex gap-1.5 sm:gap-2 items-center"
             >
                 {Array.from({ length: COLS }).map((_, colIdx) => (
                 <PreviewTile
@@ -76,7 +76,7 @@ export default function GuessesDisplay({feedbackHistory, input, status, lastReve
         return (
             <div
             key={`row-${rowIdx}`}
-            style={{ display: "flex", gap: 8, alignItems: "center" }}
+            className="flex gap-1.5 sm:gap-2 items-center"
             >
             {Array.from({ length: COLS }).map((_, colIdx) => (
                 <PreviewTile key={colIdx} char=" " kind="empty" />

@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className="min-h-screen bg-bg-app text-text">
-          <div className="mx-auto w-full px-4 py-6">
+          <div className="mx-auto w-full px-4 py-6 overflow-x-hidden">
             <Header />
             {children}
           </div>

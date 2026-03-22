@@ -10,7 +10,8 @@ export default function PreviewTile({
   kind: "pending" | "empty";
   isCursor?: boolean;
 }) {
-  const size = 44;
+  // Scales down on narrow screens so rows never overflow
+  const size = "min(44px, calc((100vw - 114px) / 6))";
   const showChar = char === " " ? "" : char;
 
   // Base styling

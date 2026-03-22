@@ -34,13 +34,13 @@ export function HangmanKeyboard({
 
   function keyClass(state: KeyState, isDisabled: boolean) {
     return cx(
-      // Base (mobile-first)
+      // Base (mobile-first) — flex-1 + min-w-0 so keys shrink to fit any screen
       "rounded-md border transition select-none flex items-center justify-center",
       "text-xs font-semibold",
-      "px-2 py-2 min-w-[34px] h-9",
+      "flex-1 min-w-0 max-w-[42px] px-0.5 py-2 h-9",
 
       // Larger screens
-      "sm:text-sm sm:px-3 sm:py-3 sm:min-w-[42px] sm:h-11",
+      "sm:text-sm sm:px-2 sm:py-3 sm:h-11",
 
       state === "idle" && "border-white/10 bg-white/5 hover:bg-white/10",
       state === "guessed" && "border-white/10 bg-white/5 opacity-60",
@@ -52,11 +52,11 @@ export function HangmanKeyboard({
   }
 
   return (
-    <div className="flex flex-col gap-1 sm:gap-2">
+    <div className="flex flex-col gap-1 sm:gap-2 w-full">
       {ROWS.map((row) => (
         <div
           key={row}
-          className="flex justify-center gap-1 sm:gap-2"
+          className="flex justify-center gap-[3px] sm:gap-2"
         >
           {row.split("").map((ch) => {
             const state = getKeyState(ch);

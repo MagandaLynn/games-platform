@@ -220,7 +220,7 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
   }
 
   return (
-    <div className="flex flex-col items-center justify-center">
+    <div className="flex flex-col items-center justify-center overflow-x-hidden w-full">
     
       
       <ModeToggle mode={mode} setMode={setMode} />

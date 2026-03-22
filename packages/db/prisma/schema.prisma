@@ -77,3 +77,70 @@ model SavedHangmanPuzzle {
   @@index([userId])
   @@index([sessionId])
 }
+
+// RPG Models
+model RPGCharacter {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String
+  name      String
+  level     Int      @default(1)
+  xp        Int      @default(0)
+  hp        Int      @default(100)
+  maxHp     Int      @default(100)
+  gold      Int      @default(0)
+  
+  // Stats
+  strength     Int @default(10)
+  defense      Int @default(10)
+  intelligence Int @default(10)
+  speed        Int @default(10)
+  
+  // Progress
+  currentLocation String  @default("town")
+  questsCompleted String  @default("[]") // JSON array of quest IDs
+  inventory       String  @default("[]") // JSON array of items
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  battles   RPGBattle[]
+  quests    RPGQuestProgress[]
+  
+  @@unique([sessionId])
+  @@index([userId])
+}
+
+model RPGBattle {
+  id          String   @id @default(cuid())
+  characterId String
+  enemyType   String
+  result      String   // "won", "lost", "fled"
+  xpGained    Int      @default(0)
+  goldGained  Int      @default(0)
+  damageDealt Int      @default(0)
+  damageTaken Int      @default(0)
+  turns       Int      @default(0)
+  
+  createdAt DateTime      @default(now())
+  character RPGCharacter @relation(fields: [characterId], references: [id])
+  
+  @@index([characterId])
+  @@index([createdAt])
+}
+
+model RPGQuestProgress {
+  id          String   @id @default(cuid())
+  characterId String
+  questId     String
+  status      String   @default("active") // "active", "completed", "failed"
+  progress    String   @default("{}")     // JSON object for quest-specific progress
+  
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  character RPGCharacter @relation(fields: [characterId], references: [id])
+  
+  @@unique([characterId, questId])
+  @@index([characterId])
+  @@index([status])
+}
