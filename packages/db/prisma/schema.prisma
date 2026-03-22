@@ -144,3 +144,54 @@ model RPGQuestProgress {
   @@index([characterId])
   @@index([status])
 }
+
+model WurpleDailyPlay {
+  id          String   @id @default(cuid())
+  seed        String
+  date        DateTime
+  mode        String
+  sessionId   String
+  userId      String?
+  status      String   @default("playing")
+  guessCount  Int      @default(0)
+  maxGuesses  Int?
+  won         Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([seed, mode, sessionId], name: "seed_mode_session")
+  @@index([mode, date])
+  @@index([sessionId, date])
+  @@index([userId, date])
+}
+
+model SocialProfile {
+  id          String   @id @default(cuid())
+  handle      String   @unique
+  displayName String?
+  followToken String   @unique
+  sessionId   String   @unique
+  userId      String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  followers SocialFollow[] @relation("ProfileFollowers")
+  following SocialFollow[] @relation("ProfileFollowing")
+
+  @@index([createdAt])
+}
+
+model SocialFollow {
+  id                 String   @id @default(cuid())
+  followerProfileId  String
+  followingProfileId String
+  createdAt          DateTime @default(now())
+
+  follower  SocialProfile @relation("ProfileFollowing", fields: [followerProfileId], references: [id], onDelete: Cascade)
+  following SocialProfile @relation("ProfileFollowers", fields: [followingProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([followerProfileId, followingProfileId], name: "follower_following")
+  @@index([followerProfileId, createdAt])
+  @@index([followingProfileId, createdAt])
+}

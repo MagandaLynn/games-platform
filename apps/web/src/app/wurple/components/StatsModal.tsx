@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useId, useMemo } from "react";
-import type { WurpleStats } from "../helpers/statsStore";
+import type { WurpleStatsResponse } from "../helpers/types";
 
 type Mode = "easy" | "challenge";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  stats: WurpleStats;
+  stats: WurpleStatsResponse;
   mode: Mode;
   onModeChange: (m: Mode) => void;
 };
@@ -48,18 +48,18 @@ export default function StatsModal({
     // const max = typeof maxGuesses === "number" ? maxGuesses : 10;
     const max = mode === "easy" ? 6 : 10;
 
-    const rows = Array.from({ length: max }, (_, i) => {
-    const guess = i + 1;
-    const count = modeStats.winGuessCounts?.[String(guess)] ?? 0;
-    return { guess, count };
+    const rows: Array<{ guess: string | number; count: number }> = Array.from({ length: max }, (_, i) => {
+      const guess = i + 1;
+      const count = modeStats.guessDistribution?.[String(guess)] ?? 0;
+      return { guess, count };
     });
 
     if (mode === "challenge") {
-    const overflow = Object.entries(modeStats.winGuessCounts ?? {})
+      const overflow = Object.entries(modeStats.guessDistribution ?? {})
         .filter(([g]) => Number(g) > max)
         .reduce((sum, [, c]) => sum + c, 0);
 
-    rows.push({ guess: max+1 +"+", count: overflow } as any);
+      rows.push({ guess: `${max + 1}+`, count: overflow });
     }
 
 
