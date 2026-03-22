@@ -5,3 +5,4 @@ export * as games from "./games";
 
 // (optional) if you ALSO want direct exports:
 export * from "./games/wurple/types";
+export * from "./games/rpg/types";

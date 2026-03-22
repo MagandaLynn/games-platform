@@ -1,4 +1,4 @@
-import type { RPGCharacter } from "@playseed/game-core/src/games/rpg/types";
+import type { RPGCharacter } from "@playseed/game-core";
 
 export function serializeCharacter(dbCharacter: any): RPGCharacter {
   return {
