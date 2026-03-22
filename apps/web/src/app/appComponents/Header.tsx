@@ -7,6 +7,7 @@ import { AuthButton } from "./AuthButton";
 
 export default function Header() {
   const pathname = usePathname();
+  const isSocial = pathname?.startsWith("/social");
   // const onGamePage = pathname?.startsWith("/wurple");
   //  ${onGamePage ? "h-8" : "h-10"}
   return (
@@ -35,6 +36,18 @@ export default function Header() {
 
         {/* Right: Global actions */}
         <nav className="flex items-center gap-2">
+          <Link
+            href="/social"
+            className={[
+              "rounded-md px-2 py-1 text-xs font-medium transition",
+              isSocial
+                ? "bg-link/20 text-text"
+                : "text-text-muted hover:bg-bg-soft hover:text-text",
+            ].join(" ")}
+          >
+            Social
+          </Link>
+
           {/* <Link
             href="/games"
             className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-bg-soft hover:text-text transition"

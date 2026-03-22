@@ -7,10 +7,14 @@ import GuessesDisplay from "./components/GuessesDisplay";
 import Distance from "./components/Distance";
 import ModeToggle from "./components/ModeToggle";
 
-import type { DailyResponse, GuessFeedback, GuessResponse, WurpleMode } from "./helpers/types";
+import type {
+  DailyResponse,
+  GuessFeedback,
+  GuessResponse,
+  WurpleMode,
+} from "./helpers/types";
 
 import { buildHeatmap } from "./helpers/helpers";
-import { buildShareText } from "./helpers/share-results";
 
 import { loadRun, saveRun } from "./wurpleStorage";
 import { shareWurple } from "./helpers/wurpleShare";
@@ -20,7 +24,6 @@ import { recordCompletion } from "./helpers/statsStore";
 
 export default function WurpleClient({ initialDaily}: { initialDaily: DailyResponse }) {
   const [mode, setMode] = useState<WurpleMode>("easy");
-  // const [stats, setStats] = useState<ReturnType<typeof recordCompletion> | null>(null);
   const [seed] = useState(initialDaily.seed);
 
   const [rulesVersion, setRulesVersion] = useState(initialDaily.rulesVersion);
@@ -37,7 +40,6 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
   const [input, setInput] = useState("");
 
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [lastRevealedRow, setLastRevealedRow] = useState<number>(-1);
@@ -129,22 +131,19 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
       console.error("Error loading daily:", err);
       setError(`Error loading daily: ${err.message}`);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [seed, mode]);
 
 
   useEffect(() => {
-  if (!initialDaily) return; // or initialDaily
-  if (!gameOver) return; // whatever your boolean is
-  if (status !== "won" && status !== "lost") return;
+    if (!initialDaily) return;
+    if (!gameOver) return;
+    if (status !== "won" && status !== "lost") return;
 
-  // use the seed from your daily payload — that's your day key
-  const seed = initialDaily.seed;            // "2026-01-14"
-  const guessCount = guesses.length;  // number of guesses taken
-
-  const updated = recordCompletion(seed, mode, status, guessCount);
-
-}, [gameOver, status]);
+    const seed = initialDaily.seed;
+    const guessCount = guesses.length;
+    recordCompletion(seed, mode, status, guessCount);
+  }, [gameOver, guesses.length, initialDaily, mode, status]);
 
   async function submitGuess() {
     if (submitLock.current) return;
@@ -262,18 +261,8 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
         <div className="mt-5 text-center">
           <button
             type="button"
-            onClick={async () => {
-              const text = buildShareText({
-                date: seed,
-                mode,
-                status,
-                maxGuesses: rules.maxGuesses,
-                feedbackHistory,
-              });
-
-              await navigator.clipboard.writeText(text);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
+            onClick={() => {
+              void handleShare();
             }}
             className="
               inline-flex items-center justify-center
@@ -291,12 +280,6 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
           >
             Share
           </button>
-
-          {copied && (
-            <div className="mt-2 text-sm font-semibold text-emerald-500">
-              Copied!
-            </div>
-          )}
           {message && <Toast message={message} />}
 
         </div>

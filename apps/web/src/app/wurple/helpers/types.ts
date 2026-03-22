@@ -37,6 +37,28 @@ export type DailyResponse = {
   rulesVersion: number;
 };
 
+export type WurpleModeStats = {
+  totalPlayed: number;
+  totalCompleted: number;
+  totalWins: number;
+  totalLosses: number;
+  winRate: number;
+  currentStreak: number;
+  bestStreak: number;
+  avgGuessesToWin: number;
+  bestGuessCount: number | null;
+  totalGuesses: number;
+  firstTryWins: number;
+  hardModeWins: number;
+  lastPlayedAt: string | null;
+  guessDistribution: Record<string, number>;
+};
+
+export type WurpleStatsResponse = {
+  updatedAt: string;
+  statsByMode: Record<WurpleMode, WurpleModeStats>;
+};
+
 type CompletionMode = "none" | "easy" | "challenge" | "both";
 export type ArchiveMeta = {
   date: string; // YYYY-MM-DD

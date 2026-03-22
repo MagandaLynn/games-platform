@@ -41,6 +41,20 @@ export default function HangmanLandingPage() {
             Play Today's Daily
           </button>
         </Link>
+
+        <Link href="/social">
+          <button
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              fontSize: "0.95rem",
+              opacity: 0.8,
+              cursor: "pointer",
+            }}
+          >
+            Social & Compare
+          </button>
+        </Link>
       </div>
     </main>
   );

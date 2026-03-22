@@ -144,3 +144,89 @@ model RPGQuestProgress {
   @@index([characterId])
   @@index([status])
 }
+
+model WurpleDailyPlay {
+  id          String   @id @default(cuid())
+  seed        String
+  date        DateTime
+  mode        String
+  sessionId   String
+  userId      String?
+  status      String   @default("playing")
+  guessCount  Int      @default(0)
+  maxGuesses  Int?
+  won         Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([seed, mode, sessionId], name: "seed_mode_session")
+  @@index([mode, date])
+  @@index([sessionId, date])
+  @@index([userId, date])
+}
+
+model SemantleDailyPlay {
+  id             String   @id @default(cuid())
+  puzzleNumber   Int
+  solved         Boolean  @default(false)
+  guessCount     Int?
+  topGuessNumber Int?
+  topScore       Int?
+  hintsUsed      Int?
+  rawText        String
+  sessionId      String
+  userId         String?
+  importedAt     DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([puzzleNumber, sessionId], name: "puzzle_session")
+  @@index([sessionId, importedAt])
+  @@index([userId, importedAt])
+}
+
+model SocialProfile {
+  id          String   @id @default(cuid())
+  handle      String   @unique
+  displayName String?
+  followToken String   @unique
+  sessionId   String   @unique
+  userId      String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  followers SocialFollow[] @relation("ProfileFollowers")
+  following SocialFollow[] @relation("ProfileFollowing")
+  blocks    SocialBlock[]  @relation("ProfileBlocks")
+  blockedBy SocialBlock[]  @relation("ProfileBlockedBy")
+
+  @@index([createdAt])
+}
+
+model SocialFollow {
+  id                 String   @id @default(cuid())
+  followerProfileId  String
+  followingProfileId String
+  createdAt          DateTime @default(now())
+
+  follower  SocialProfile @relation("ProfileFollowing", fields: [followerProfileId], references: [id], onDelete: Cascade)
+  following SocialProfile @relation("ProfileFollowers", fields: [followingProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([followerProfileId, followingProfileId], name: "follower_following")
+  @@index([followerProfileId, createdAt])
+  @@index([followingProfileId, createdAt])
+}
+
+model SocialBlock {
+  id               String   @id @default(cuid())
+  blockerProfileId String
+  blockedProfileId String
+  createdAt        DateTime @default(now())
+
+  blocker SocialProfile @relation("ProfileBlocks", fields: [blockerProfileId], references: [id], onDelete: Cascade)
+  blocked SocialProfile @relation("ProfileBlockedBy", fields: [blockedProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerProfileId, blockedProfileId], name: "blocker_blocked")
+  @@index([blockerProfileId, createdAt])
+  @@index([blockedProfileId, createdAt])
+}

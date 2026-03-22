@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { games } from "@playseed/game-core";
+import { prisma } from "@playseed/db";
+import { requireSessionId } from "@/server/session";
+import { auth } from "@clerk/nextjs/server";
 export const runtime = "nodejs";
 
 const RULES_VERSION = 1;
@@ -13,6 +16,67 @@ function parseMode(value: unknown): "easy" | "challenge" {
   const m = value.toLowerCase();
   return m === "challenge" ? "challenge" : "easy";
 }
+
+function seedToUtcDate(seed: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(seed)) return null;
+  const date = new Date(`${seed}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+async function savePlaySnapshot(args: {
+  seed: string;
+  mode: "easy" | "challenge";
+  guessCount: number;
+  maxGuesses: number | null;
+  status: "playing" | "won" | "lost";
+}) {
+  const date = seedToUtcDate(args.seed);
+  if (!date) return;
+
+  const sessionId = await requireSessionId();
+  const { userId } = await auth();
+  const completedAt = args.status === "playing" ? null : new Date();
+
+  await prisma.wurpleDailyPlay.upsert({
+    where: {
+      seed_mode_session: {
+        seed: args.seed,
+        mode: args.mode,
+        sessionId,
+      },
+    },
+    update: {
+      userId,
+      status: args.status,
+      guessCount: args.guessCount,
+      maxGuesses: args.maxGuesses,
+      won: args.status === "won",
+      completedAt,
+    },
+    create: {
+      seed: args.seed,
+      date,
+      mode: args.mode,
+      sessionId,
+      userId,
+      status: args.status,
+      guessCount: args.guessCount,
+      maxGuesses: args.maxGuesses,
+      won: args.status === "won",
+      completedAt,
+    },
+  });
+}
+
+function isMissingWurpleStatsTable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("WurpleDailyPlay") &&
+    (message.includes("does not exist") || message.includes("P2021"))
+  );
+}
+
 export function GET() {
   return NextResponse.json({ error: "Use POST" }, { status: 405 });
 }
@@ -60,6 +124,23 @@ export async function POST(req: Request) {
 
     // Mode-aware feedback (tiles for easy, distance for challenge, etc.)
     const feedback = games.wurple.getGuessFeedback(state.solution, normalizedGuess, cfg);
+
+    try {
+      await savePlaySnapshot({
+        seed,
+        mode,
+        guessCount: state.guesses.length,
+        maxGuesses: cfg.maxGuesses,
+        status: internal.status,
+      });
+    } catch (saveError) {
+      if (!isMissingWurpleStatsTable(saveError)) {
+        throw saveError;
+      }
+
+      // keep gameplay working even if stats table is not available in this DB
+      console.warn("[wurple] stats persistence skipped: WurpleDailyPlay table missing");
+    }
 
     return NextResponse.json({
       seed,
