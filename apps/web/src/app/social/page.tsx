@@ -1577,26 +1577,13 @@ export default function SocialPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <header>
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Social Dashboard</h1>
           <p className="mt-1 text-sm text-text-muted">
             Compare daily performance across games with people you follow.
           </p>
         </div>
-
-        <label className="flex items-center gap-2 text-sm md:self-auto self-start">
-          <span className="text-text-muted">Range</span>
-          <select
-            value={range}
-            onChange={(e) => setRange(e.target.value as "30d" | "90d" | "all")}
-            className="rounded border border-white/10 bg-bg px-2 py-1 text-sm"
-          >
-            <option value="30d">Last 30d</option>
-            <option value="90d">Last 90d</option>
-            <option value="all">All</option>
-          </select>
-        </label>
       </header>
 
       {loadError && (
