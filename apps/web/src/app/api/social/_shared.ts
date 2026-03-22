@@ -98,6 +98,95 @@ export async function withFollowCounts(profileId: string) {
   return { followers, following };
 }
 
+type SocialBlockRow = {
+  blockerProfileId: string;
+  blockedProfileId: string;
+};
+
+let socialBlockEnsured = false;
+
+function isMissingSocialBlockTable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("SocialBlock") &&
+    (message.includes("does not exist") || message.includes("42P01") || message.includes("P2021"))
+  );
+}
+
+export async function ensureSocialBlockTable() {
+  if (socialBlockEnsured) return;
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SocialBlock" (
+      "id" TEXT NOT NULL,
+      "blockerProfileId" TEXT NOT NULL,
+      "blockedProfileId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SocialBlock_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "SocialBlock_blockerProfileId_fkey" FOREIGN KEY ("blockerProfileId") REFERENCES "SocialProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "SocialBlock_blockedProfileId_fkey" FOREIGN KEY ("blockedProfileId") REFERENCES "SocialProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "SocialBlock_blocker_blocked_key" UNIQUE ("blockerProfileId", "blockedProfileId")
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SocialBlock_blockerProfileId_createdAt_idx" ON "SocialBlock" ("blockerProfileId", "createdAt")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SocialBlock_blockedProfileId_createdAt_idx" ON "SocialBlock" ("blockedProfileId", "createdAt")`
+  );
+
+  socialBlockEnsured = true;
+}
+
+export async function getBlockedProfileIds(actorProfileId: string) {
+  try {
+    const rows = (await prisma.$queryRaw<Array<Pick<SocialBlockRow, "blockedProfileId">>>`
+      SELECT "blockedProfileId"
+      FROM "SocialBlock"
+      WHERE "blockerProfileId" = ${actorProfileId}
+    `) as Array<Pick<SocialBlockRow, "blockedProfileId">>;
+
+    return rows.map((row) => row.blockedProfileId);
+  } catch (error) {
+    if (isMissingSocialBlockTable(error)) return [];
+    throw error;
+  }
+}
+
+export async function getBlockingProfileIds(actorProfileId: string) {
+  try {
+    const rows = (await prisma.$queryRaw<Array<Pick<SocialBlockRow, "blockerProfileId">>>`
+      SELECT "blockerProfileId"
+      FROM "SocialBlock"
+      WHERE "blockedProfileId" = ${actorProfileId}
+    `) as Array<Pick<SocialBlockRow, "blockerProfileId">>;
+
+    return rows.map((row) => row.blockerProfileId);
+  } catch (error) {
+    if (isMissingSocialBlockTable(error)) return [];
+    throw error;
+  }
+}
+
+export async function isBlockedBetween(aProfileId: string, bProfileId: string) {
+  try {
+    const rows = (await prisma.$queryRaw<Array<{ count: number }>>`
+      SELECT COUNT(*)::int AS count
+      FROM "SocialBlock"
+      WHERE
+        ("blockerProfileId" = ${aProfileId} AND "blockedProfileId" = ${bProfileId})
+        OR
+        ("blockerProfileId" = ${bProfileId} AND "blockedProfileId" = ${aProfileId})
+    `) as Array<{ count: number }>;
+
+    return (rows[0]?.count ?? 0) > 0;
+  } catch (error) {
+    if (isMissingSocialBlockTable(error)) return false;
+    throw error;
+  }
+}
+
 export type RangeKey = "30d" | "90d" | "all";
 
 export function parseRange(input: string | null): RangeKey {

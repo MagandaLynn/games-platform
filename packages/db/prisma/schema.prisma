@@ -178,6 +178,8 @@ model SocialProfile {
 
   followers SocialFollow[] @relation("ProfileFollowers")
   following SocialFollow[] @relation("ProfileFollowing")
+  blocks    SocialBlock[]  @relation("ProfileBlocks")
+  blockedBy SocialBlock[]  @relation("ProfileBlockedBy")
 
   @@index([createdAt])
 }
@@ -194,4 +196,18 @@ model SocialFollow {
   @@unique([followerProfileId, followingProfileId], name: "follower_following")
   @@index([followerProfileId, createdAt])
   @@index([followingProfileId, createdAt])
+}
+
+model SocialBlock {
+  id               String   @id @default(cuid())
+  blockerProfileId String
+  blockedProfileId String
+  createdAt        DateTime @default(now())
+
+  blocker SocialProfile @relation("ProfileBlocks", fields: [blockerProfileId], references: [id], onDelete: Cascade)
+  blocked SocialProfile @relation("ProfileBlockedBy", fields: [blockedProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerProfileId, blockedProfileId], name: "blocker_blocked")
+  @@index([blockerProfileId, createdAt])
+  @@index([blockedProfileId, createdAt])
 }

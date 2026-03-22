@@ -1,5 +1,5 @@
 import { prisma } from "@playseed/db";
-import { getDateRange, parseRange, resolveOrCreateProfile } from "../../_shared";
+import { getBlockedProfileIds, getBlockingProfileIds, getDateRange, parseRange, resolveOrCreateProfile } from "../../_shared";
 
 export const runtime = "nodejs";
 
@@ -186,12 +186,24 @@ export async function GET(req: Request) {
 
     const me = await resolveOrCreateProfile();
 
+    const [blockedByMe, blockedByOthers] = await Promise.all([
+      getBlockedProfileIds(me.id),
+      getBlockingProfileIds(me.id),
+    ]);
+
+    const blockedIds = new Set<string>([
+      ...blockedByMe,
+      ...blockedByOthers,
+    ]);
+
     const follows = await prisma.socialFollow.findMany({
       where: { followerProfileId: me.id },
       include: { following: true },
       orderBy: { createdAt: "asc" },
       take: 25,
     });
+
+    const filteredFollows = follows.filter((f) => !blockedIds.has(f.followingProfileId));
 
     const axisFrom = from ?? (() => {
       const fallback = new Date(to);
@@ -202,7 +214,7 @@ export async function GET(req: Request) {
     if (!from) {
       const candidates = await Promise.all([
         findEarliestDateForProfile(me, mode, to),
-        ...follows.map((f) => findEarliestDateForProfile(f.following, mode, to)),
+        ...filteredFollows.map((f) => findEarliestDateForProfile(f.following, mode, to)),
       ]);
 
       const earliest = candidates
@@ -220,7 +232,7 @@ export async function GET(req: Request) {
     const meData = await collectForProfile(me, axisDates, axisFrom, to, mode);
 
     const followData = await Promise.all(
-      follows.map((f) => collectForProfile(f.following, axisDates, axisFrom, to, mode))
+      filteredFollows.map((f) => collectForProfile(f.following, axisDates, axisFrom, to, mode))
     );
 
     return Response.json({

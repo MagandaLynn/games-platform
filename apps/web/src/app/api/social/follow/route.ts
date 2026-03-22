@@ -1,5 +1,5 @@
 import { prisma } from "@playseed/db";
-import { resolveOrCreateProfile, sanitizeHandle } from "../_shared";
+import { isBlockedBetween, resolveOrCreateProfile, sanitizeHandle } from "../_shared";
 
 export const runtime = "nodejs";
 
@@ -30,6 +30,11 @@ export async function POST(req: Request) {
 
     if (target.id === actor.id) {
       return Response.json({ error: "CANNOT_FOLLOW_SELF" }, { status: 409 });
+    }
+
+    const blocked = await isBlockedBetween(actor.id, target.id);
+    if (blocked) {
+      return Response.json({ error: "FOLLOW_BLOCKED" }, { status: 409 });
     }
 
     const existing = await prisma.socialFollow.findUnique({

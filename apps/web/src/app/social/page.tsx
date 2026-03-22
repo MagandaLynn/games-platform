@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const PLAYER_COLORS = ["#60a5fa", "#f97316", "#a78bfa", "#34d399", "#facc15", "#f472b6", "#22d3ee"];
 
@@ -9,6 +9,13 @@ type FollowItem = {
   handle: string;
   displayName: string | null;
   followedAt: string;
+};
+
+type BlockItem = {
+  profileId: string;
+  handle: string;
+  displayName: string | null;
+  blockedAt: string;
 };
 
 type CompareDay = {
@@ -224,24 +231,39 @@ function MetricLineChart({
   ).sort((a, b) => a - b);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="flex flex-wrap gap-3 text-xs text-text-muted">
+    <div className="mt-4 space-y-3">
+      {/* Player selector pills */}
+      <div className="flex flex-wrap gap-2 text-xs">
         {players.map((player) => (
-          <div key={player.profileId} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/10 px-3 py-1">
+          <div
+            key={player.profileId}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/10 px-3 py-1 text-text-muted"
+          >
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: player.color }} />
             <span>{player.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* Symbol legend */}
+      <div className="flex flex-wrap gap-3 text-[11px] text-text-muted">
+        <div className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full border border-white/20 bg-white/30" />
+          <span>Completed</span>
+        </div>
 
         {highlightLegend && (
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/10 px-3 py-1">
-            <span className="h-2.5 w-2.5 rounded-full border border-white/20 bg-white" />
+          <div className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full border border-white/40 bg-white" />
             <span>{highlightLegend}</span>
           </div>
         )}
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/10 px-3 py-1">
-          <span className="font-semibold text-white">×</span>
+        <div className="inline-flex items-center gap-1.5">
+          <svg width="11" height="11" viewBox="0 0 11 11" className="shrink-0">
+            <line x1="2" y1="2" x2="9" y2="9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <line x1="9" y1="2" x2="2" y2="9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
           <span>Started, not finished</span>
         </div>
       </div>
@@ -334,32 +356,43 @@ function MetricLineChart({
   );
 }
 
-function GameSummaryGrid({ compare, variant }: { compare: CompareResponse; variant: GameKind }) {
-  const me = compare.me;
+function GameSummaryGrid({
+  entry,
+  availableDays,
+  variant,
+  isMe,
+}: {
+  entry: CompareEntry;
+  availableDays: number;
+  variant: GameKind;
+  isMe: boolean;
+}) {
+  const s = entry.summary;
+  const heading = isMe ? "Your summary" : (entry.displayName ?? `@${entry.handle}`);
 
   return (
     <div className="mt-6">
-      <h3 className="text-sm font-semibold text-white">Your summary</h3>
+      <h3 className="text-sm font-semibold text-white">{heading}</h3>
 
       <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard label="Games played" value={me.summary.totalPlayed} hint="Started with at least one guess." />
-        <SummaryCard label="Games completed" value={me.summary.totalCompleted} hint={`Out of ${compare.availableDays} scheduled dailies in range.`} />
+        <SummaryCard label="Games played" value={s.totalPlayed} hint="Started with at least one guess." />
+        <SummaryCard label="Games completed" value={s.totalCompleted} hint={`Out of ${availableDays} scheduled dailies in range.`} />
 
         {variant === "hangman" ? (
           <>
-            <SummaryCard label="Perfect games" value={me.summary.perfectCount} hint="Won with zero wrong guesses and no hint." />
-            <SummaryCard label="Avg wrong guesses" value={me.summary.avgWrongGuesses.toFixed(2)} hint="Across completed dailies." />
-            <SummaryCard label="Win rate" value={formatPercent(me.summary.winRate)} hint="Completed games won out of total completed." />
+            <SummaryCard label="Perfect games" value={s.perfectCount} hint="Won with zero wrong guesses and no hint." />
+            <SummaryCard label="Avg wrong guesses" value={s.avgWrongGuesses.toFixed(2)} hint="Across completed dailies." />
+            <SummaryCard label="Win rate" value={formatPercent(s.winRate)} hint="Completed games won out of total completed." />
           </>
         ) : (
           <>
-            <SummaryCard label="Wins" value={me.summary.totalWon} hint={formatPercent(me.summary.winRate)} />
-            <SummaryCard label="Losses" value={me.summary.totalLost} hint={`${compare.availableDays - me.summary.totalWon} possible scheduled misses in range.`} />
-            <SummaryCard label="Avg guesses" value={me.summary.avgGuesses.toFixed(2)} hint="Across completed dailies." />
+            <SummaryCard label="Wins" value={s.totalWon} hint={formatPercent(s.winRate)} />
+            <SummaryCard label="Losses" value={s.totalLost} hint={`${availableDays - s.totalWon} possible scheduled misses in range.`} />
+            <SummaryCard label="Avg guesses" value={s.avgGuesses.toFixed(2)} hint="Across completed dailies." />
           </>
         )}
 
-        <SummaryCard label="Still in progress" value={me.summary.attemptedNotCompletedDays} hint="Started but not finished yet." />
+        <SummaryCard label="Still in progress" value={s.attemptedNotCompletedDays} hint="Started but not finished yet." />
       </div>
     </div>
   );
@@ -475,7 +508,6 @@ function GameSection({
         highlightLegend={highlightLegend}
       />
 
-      <GameSummaryGrid compare={compare} variant={variant} />
       <PlayerBreakdown players={players} variant={variant} />
     </section>
   );
@@ -581,11 +613,14 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
 
 export default function SocialPage() {
   const [followUrl, setFollowUrl] = useState("");
+  const [followToken, setFollowToken] = useState("");
+  const followUrlInputRef = useRef<HTMLInputElement | null>(null);
   const [followInput, setFollowInput] = useState("");
   const [profileHandle, setProfileHandle] = useState<string>("");
   const [profileDisplayName, setProfileDisplayName] = useState<string>("");
   const [profileInput, setProfileInput] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<"idle" | "success" | "error">("idle");
   const [status, setStatus] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hangmanCompare, setHangmanCompare] = useState<CompareResponse | null>(null);
@@ -593,6 +628,8 @@ export default function SocialPage() {
   const [wurpleChallengeCompare, setWurpleChallengeCompare] = useState<CompareResponse | null>(null);
   const [wurpleError, setWurpleError] = useState<string | null>(null);
   const [follows, setFollows] = useState<FollowItem[]>([]);
+  const [followers, setFollowers] = useState<FollowItem[]>([]);
+  const [blockedPlayers, setBlockedPlayers] = useState<BlockItem[]>([]);
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
@@ -726,19 +763,32 @@ export default function SocialPage() {
 
       if (linkRes.ok) {
         const linkData = await linkRes.json();
-        const url = linkData.followUrl ?? "";
+        const token = typeof linkData.token === "string" ? linkData.token : "";
+        const rawUrl = typeof linkData.followUrl === "string" ? linkData.followUrl : "";
+        const fallbackUrl =
+          token && typeof window !== "undefined"
+            ? `${window.location.origin}/social?follow=${encodeURIComponent(token)}`
+            : "";
+        const url = rawUrl || fallbackUrl;
+
+        setFollowToken(token);
         setFollowUrl(url);
         if (!url) pushLoadError("Follow link is not ready yet. Refresh and try again.");
       } else {
         setFollowUrl("");
+        setFollowToken("");
         pushLoadError("Could not load your follow link.");
       }
 
       if (followsRes.ok) {
         const followsData = await followsRes.json();
         setFollows(followsData.follows ?? []);
+        setFollowers(followsData.followers ?? []);
+        setBlockedPlayers(followsData.blocked ?? []);
       } else {
         setFollows([]);
+        setFollowers([]);
+        setBlockedPlayers([]);
         pushLoadError("Could not load your follows list.");
       }
 
@@ -772,6 +822,9 @@ export default function SocialPage() {
       }
     } catch {
       setLoadError("Could not load your social dashboard. Please refresh the page.");
+      setFollows([]);
+      setFollowers([]);
+      setBlockedPlayers([]);
       setHangmanCompare(null);
       setWurpleEasyCompare(null);
       setWurpleChallengeCompare(null);
@@ -900,9 +953,54 @@ export default function SocialPage() {
   );
 
   async function copyFollowLink() {
-    if (!followUrl) return;
-    await navigator.clipboard.writeText(`Follow my game results: ${followUrl}`);
-    setStatus("Follow link copied!");
+    const fallbackUrl =
+      followToken && typeof window !== "undefined"
+        ? `${window.location.origin}/social?follow=${encodeURIComponent(followToken)}`
+        : "";
+    const rawFollowUrl = followUrl || fallbackUrl;
+    const textToCopy = `Follow me on Decide~Learn~Do: ${rawFollowUrl}`;
+
+    if (!rawFollowUrl) {
+      setCopyFeedback("error");
+      setTimeout(() => setCopyFeedback("idle"), 1600);
+      setStatus("Follow link is not ready yet. Please refresh the page.");
+      return;
+    }
+
+    try {
+      const input = followUrlInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+      }
+
+      const copied = document.execCommand("copy");
+      if (copied) {
+        setCopyFeedback("success");
+        setTimeout(() => setCopyFeedback("idle"), 1600);
+        setStatus("Follow link copied!");
+        return;
+      }
+    } catch {
+      // continue to modern clipboard fallback
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopyFeedback("success");
+        setTimeout(() => setCopyFeedback("idle"), 1600);
+        setStatus("Follow link copied!");
+        return;
+      }
+    } catch {
+      // ignore and show manual copy message below
+    }
+
+    setCopyFeedback("error");
+    setTimeout(() => setCopyFeedback("idle"), 1600);
+    setStatus("Could not copy link. Please select the field and copy manually.");
   }
 
   async function followByHandleOrToken(e: React.FormEvent) {
@@ -932,7 +1030,11 @@ export default function SocialPage() {
       setFollowInput("");
       await loadAll(range);
     } else {
-      setStatus(data.error ?? "Could not follow that profile");
+      if (data.error === "FOLLOW_BLOCKED") {
+        setStatus("You can’t follow this player due to a block.");
+      } else {
+        setStatus(data.error ?? "Could not follow that profile");
+      }
     }
   }
 
@@ -942,6 +1044,36 @@ export default function SocialPage() {
       await loadAll(range);
       setStatus("Unfollowed");
     }
+  }
+
+  async function blockPlayer(profileId: string) {
+    const res = await fetch("/api/social/block", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profileId }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setStatus(data.alreadyBlocked ? "Player is already blocked." : "Player blocked.");
+      await loadAll(range);
+      return;
+    }
+
+    setStatus(data.error ?? "Could not block this player");
+  }
+
+  async function unblockPlayer(profileId: string) {
+    const res = await fetch(`/api/social/block/${profileId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok) {
+      setStatus("Player unblocked.");
+      await loadAll(range);
+      return;
+    }
+
+    setStatus(data.error ?? "Could not unblock this player");
   }
 
   async function saveProfileName(e: React.FormEvent) {
@@ -1018,11 +1150,14 @@ export default function SocialPage() {
             <div className="text-xs text-text-muted">
               This name appears in social compare views.
             </div>
+            <div className="text-xs text-text-muted">
+              Your handle: <span className="font-semibold text-white">@{profileHandle || "player"}</span>
+            </div>
             <form onSubmit={saveProfileName} className="flex gap-2">
               <input
                 value={profileInput}
                 onChange={(e) => setProfileInput(e.target.value)}
-                placeholder="Display name"
+                placeholder={`Display name (or use @${profileHandle || "player"})`}
                 className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
                 maxLength={40}
               />
@@ -1048,18 +1183,30 @@ export default function SocialPage() {
             </div>
             <div className="flex gap-2">
               <input
+                ref={followUrlInputRef}
                 readOnly
                 value={followUrl}
                 className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+                onFocus={(e) => e.currentTarget.select()}
               />
               <button
                 type="button"
                 onClick={copyFollowLink}
-                disabled={!followUrl}
-                className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!followUrl && !followToken}
+                className={[
+                  "rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed",
+                  copyFeedback === "success" ? "bg-emerald-600" : copyFeedback === "error" ? "bg-red-600" : "bg-link",
+                ].join(" ")}
               >
-                Copy
+                {copyFeedback === "success" ? "Copied!" : copyFeedback === "error" ? "Copy failed" : "Copy"}
               </button>
+            </div>
+            <div className="text-[11px] text-text-muted">
+              {copyFeedback === "success"
+                ? "✓ Copied to clipboard"
+                : copyFeedback === "error"
+                  ? "Copy was blocked — select the link field and press ⌘C"
+                  : ""}
             </div>
           </div>
         </div>
@@ -1160,12 +1307,81 @@ export default function SocialPage() {
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void blockPlayer(f.profileId)}
+                  className="text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300"
+                >
+                  Block
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void unfollow(f.profileId)}
+                  className="text-xs rounded-md border border-white/20 px-2 py-1"
+                >
+                  Unfollow
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Followers ({followers.length})</h2>
+            <div className="mt-1 text-xs text-text-muted">
+              Players who follow your profile.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {followers.length === 0 && <p className="text-sm text-text-muted">No one follows you yet.</p>}
+          {followers.map((f) => (
+            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
+              <div>
+                <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
+                <div className="text-xs text-text-muted">@{f.handle}</div>
+              </div>
               <button
                 type="button"
-                onClick={() => void unfollow(f.profileId)}
-                className="text-xs rounded-md border border-white/20 px-2 py-1"
+                onClick={() => void blockPlayer(f.profileId)}
+                className="text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300"
               >
-                Unfollow
+                Block
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Blocked ({blockedPlayers.length})</h2>
+            <div className="mt-1 text-xs text-text-muted">
+              Blocked players can&apos;t follow you and won&apos;t appear in compare stats.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {blockedPlayers.length === 0 && <p className="text-sm text-text-muted">You have not blocked anyone.</p>}
+          {blockedPlayers.map((f) => (
+            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
+              <div>
+                <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
+                <div className="text-xs text-text-muted">@{f.handle}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void unblockPlayer(f.profileId)}
+                className="text-xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300"
+              >
+                Unblock
               </button>
             </div>
           ))}
