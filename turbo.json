@@ -1,5 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "ENABLE_EXPERIMENTAL_COREPACK",
+    "CLERK_SECRET_KEY",
+    "DATABASE_URL",
+    "DIRECT_URL"
+  ],
   "tasks": {
     "lint": { "outputs": [] },
     "typecheck": { "outputs": [] },
