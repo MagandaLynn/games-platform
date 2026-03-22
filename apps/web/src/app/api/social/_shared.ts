@@ -54,6 +54,48 @@ async function generateUniqueToken() {
   throw new Error("Unable to allocate follow token");
 }
 
+function isMissingWordleTable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("WordleDailyPlay") &&
+    (message.includes("does not exist") || message.includes("42P01") || message.includes("P2021"))
+  );
+}
+
+async function backfillUserOwnership(sessionId: string, userId: string) {
+  await Promise.all([
+    prisma.hangmanPlay.updateMany({
+      where: { sessionId, userId: null },
+      data: { userId },
+    }),
+    prisma.wurpleDailyPlay.updateMany({
+      where: { sessionId, userId: null },
+      data: { userId },
+    }),
+    prisma.semantleDailyPlay.updateMany({
+      where: { sessionId, userId: null },
+      data: { userId },
+    }),
+    prisma.rPGCharacter.updateMany({
+      where: { sessionId, userId: null },
+      data: { userId },
+    }),
+    (async () => {
+      try {
+        await prisma.$executeRaw`
+          UPDATE "WordleDailyPlay"
+          SET "userId" = ${userId}, "updatedAt" = NOW()
+          WHERE "sessionId" = ${sessionId}
+            AND "userId" IS NULL
+        `;
+      } catch (error) {
+        if (isMissingWordleTable(error)) return;
+        throw error;
+      }
+    })(),
+  ]);
+}
+
 export async function resolveOrCreateProfile() {
   const sessionId = await ensureSessionId();
   const { userId } = await auth();
@@ -61,25 +103,44 @@ export async function resolveOrCreateProfile() {
   const bySession = await prisma.socialProfile.findUnique({ where: { sessionId } });
   if (bySession) {
     if (!bySession.userId && userId) {
-      return prisma.socialProfile.update({
+      const updated = await prisma.socialProfile.update({
         where: { id: bySession.id },
         data: { userId },
       });
+
+      await backfillUserOwnership(sessionId, userId).catch(() => {
+        // Keep profile resolution resilient if backfill partially fails.
+      });
+
+      return updated;
     }
+
+    if (userId) {
+      await backfillUserOwnership(sessionId, userId).catch(() => {
+        // Keep profile resolution resilient if backfill partially fails.
+      });
+    }
+
     return bySession;
   }
 
   if (userId) {
     const byUser = await prisma.socialProfile.findUnique({ where: { userId } });
     if (byUser) {
-      return prisma.socialProfile.update({
+      const updated = await prisma.socialProfile.update({
         where: { id: byUser.id },
         data: { sessionId },
       });
+
+      await backfillUserOwnership(sessionId, userId).catch(() => {
+        // Keep profile resolution resilient if backfill partially fails.
+      });
+
+      return updated;
     }
   }
 
-  return prisma.socialProfile.create({
+  const created = await prisma.socialProfile.create({
     data: {
       sessionId,
       userId,
@@ -87,6 +148,14 @@ export async function resolveOrCreateProfile() {
       followToken: await generateUniqueToken(),
     },
   });
+
+  if (userId) {
+    await backfillUserOwnership(sessionId, userId).catch(() => {
+      // Keep profile resolution resilient if backfill partially fails.
+    });
+  }
+
+  return created;
 }
 
 export async function withFollowCounts(profileId: string) {
