@@ -31,7 +31,6 @@ type Play = {
   // ✅ handy for share correctness
   mode?: "daily" | "custom" | string;
 };
-
 type StateResponse = { play: Play; date?: string };
 type GuessResponse = { play: Play; date?: string };
 
