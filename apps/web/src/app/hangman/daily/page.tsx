@@ -9,8 +9,6 @@ async function baseUrl() {
 }
 
 import DailyHangmanClient from "./DailyHangmanClient";
-import { HintReveal } from "../components/HintReveal";
-import { DailyContainer } from "../components/DailyContainer";
 
 export default async function DailyHangmanPage() {
   const base = await baseUrl();
@@ -34,7 +32,6 @@ export default async function DailyHangmanPage() {
     hint: string | null;
     category: string | null;
   };
-  console.log("DailyHangmanPage instance:", instance);
 
   return (
     <main >

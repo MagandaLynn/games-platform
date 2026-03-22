@@ -1,6 +1,7 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+import { canonicalizeGuessed, toPublicPlay } from "../_shared";
 
 export const runtime = "nodejs";
 
@@ -10,47 +11,6 @@ function normalizeLetter(input: string): string | null {
   const code = s.charCodeAt(0);
   if (code < 65 || code > 90) return null;
   return s;
-}
-
-function canonicalizeGuessed(s: string) {
-  return Array.from(new Set((s ?? "").split("").filter(Boolean))).sort().join("");
-}
-
-// Uses the server-only phrase to classify guessed letters without revealing it.
-function computeLetterBuckets(phrase: string, guessed: string[]) {
-  const P = (phrase ?? "").toUpperCase();
-  const correctLetters: string[] = [];
-  const wrongLetters: string[] = [];
-
-  for (const ch of guessed) {
-    if (!ch) continue;
-    if (P.includes(ch)) correctLetters.push(ch);
-    else wrongLetters.push(ch);
-  }
-
-  return { correctLetters, wrongLetters };
-}
-
-function toPublic(result: any, phrase: string, mode: string) {
-  const guessed = Array.isArray(result.guessed) ? (result.guessed as string[]) : [];
-  const { correctLetters, wrongLetters } = computeLetterBuckets(phrase, guessed);
-
-  const status = result.status as "playing" | "won" | "lost";
-  const isOver = status !== "playing";
-
-  return {
-    masked: result.masked,
-    guessed,
-    remaining: result.remaining,
-    wrongGuesses: result.wrongGuesses,
-    maxWrong: result.maxWrong,
-    status,
-    isComplete: result.isComplete,
-    correctLetters,
-    wrongLetters,
-    solution: isOver ? phrase : null,
-    mode,
-  };
 }
 
 export async function POST(req: Request) {
@@ -108,7 +68,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       instanceId,
-      play: toPublic(current, instance.puzzle.phrase, instance.mode),
+      play: toPublicPlay(current, instance.puzzle.phrase, instance.mode),
     });
   }
 
@@ -129,6 +89,6 @@ export async function POST(req: Request) {
 
   return Response.json({
     instanceId,
-    play: toPublic(result, instance.puzzle.phrase, instance.mode),
+    play: toPublicPlay(result, instance.puzzle.phrase, instance.mode),
   });
 }

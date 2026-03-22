@@ -1,50 +1,9 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+import { canonicalizeGuessed, toPublicPlay } from "../_shared";
 
 export const runtime = "nodejs";
-
-function canonicalizeGuessed(s: string) {
-  return Array.from(new Set((s ?? "").split("").filter(Boolean))).sort().join("");
-}
-
-// Uses the server-only phrase to classify guessed letters without revealing it.
-function computeLetterBuckets(phrase: string, guessed: string[]) {
-  const P = (phrase ?? "").toUpperCase();
-  const correctLetters: string[] = [];
-  const wrongLetters: string[] = [];
-
-  for (const ch of guessed) {
-    if (!ch) continue;
-    if (P.includes(ch)) correctLetters.push(ch);
-    else wrongLetters.push(ch);
-  }
-
-  return { correctLetters, wrongLetters };
-}
-
-function toPublic(result: any, phrase: string) {
-  const guessed = Array.isArray(result.guessed) ? (result.guessed as string[]) : [];
-  const { correctLetters, wrongLetters } = computeLetterBuckets(phrase, guessed);
-
-  const status = result.status as "playing" | "won" | "lost";
-  const isOver = status !== "playing";
-
-  return {
-    masked: result.masked,
-    guessed,
-    remaining: result.remaining,
-    wrongGuesses: result.wrongGuesses,
-    maxWrong: result.maxWrong,
-    status,
-    isComplete: result.isComplete,
-    correctLetters,
-    wrongLetters,
-
-    // ✅ only reveal solution after completion (win OR loss)
-    solution: isOver ? phrase : null,
-  };
-}
 
 export async function POST(req: Request) {
   try {
@@ -117,7 +76,7 @@ export async function POST(req: Request) {
       category: instance.puzzle.category ?? null,
 
       play: {
-        ...toPublic(result, instance.puzzle.phrase),
+        ...toPublicPlay(result, instance.puzzle.phrase),
 
         // ✅ persisted attempt-level fields
         hintUsed: play.hintUsed ?? false,

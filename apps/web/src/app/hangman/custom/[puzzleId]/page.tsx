@@ -15,8 +15,6 @@ export default async function CustomHangmanPage({
   params: Promise<{ puzzleId: string }>;
 }) {
   const puzzleId = (await params).puzzleId;
-    console.log("CustomHangmanPage puzzleId:", puzzleId);
-    console.log("Params:", params);
   const res = await fetch(`${await getBaseUrl()}/api/hangman/create-instance`, {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -18,13 +18,6 @@ function dayRange(date = utcMidnight()) {
 async function handleDaily(date = utcMidnight()) {
   const { start, end } = dayRange(date);
 
-  // Debug logging
-  console.log("[handleDaily] Looking for schedule between:", {
-    start: start.toISOString(),
-    end: end.toISOString(),
-    dateParam: date.toISOString(),
-  });
-
   // Try exact match first, then range
   let schedule = await prisma.hangmanDailySchedule.findUnique({
     where: { date: start },
@@ -40,25 +33,11 @@ async function handleDaily(date = utcMidnight()) {
     });
   }
 
-  console.log("[handleDaily] Schedule found:", schedule ? `Yes (${schedule.puzzle.phrase})` : "No");
-
   if (!schedule) {
-    // Try to find any nearby schedules for debugging
-    const allSchedules = await prisma.hangmanDailySchedule.findMany({
-      take: 5,
-      orderBy: { date: "asc" },
-      select: { date: true, puzzleId: true },
-    });
-    console.log("[handleDaily] First 5 schedules in DB:", allSchedules.map(s => s.date.toISOString()));
-    
     return Response.json(
-      { 
-        error: "No daily puzzle scheduled for this date.", 
+      {
+        error: "No daily puzzle scheduled for this date.",
         date: start.toISOString(),
-        debug: {
-          queriedRange: { start: start.toISOString(), end: end.toISOString() },
-          firstSchedulesInDb: allSchedules.map(s => s.date.toISOString()),
-        }
       },
       { status: 404 }
     );

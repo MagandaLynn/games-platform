@@ -8,6 +8,7 @@ export function buildShareText({
   origin,      // e.g. window.location.origin
   instanceId,
   mode,
+  date,
 }: {
   wrongGuesses: number;
   maxWrongGuesses: number;
@@ -15,6 +16,7 @@ export function buildShareText({
   origin: string;
   instanceId: string;
   mode: HangmanMode;
+  date?: string | null;
 }) {
   const hangmanEmoji = (wrong: number, maxWrong: number) => {
     // 0..maxWrong -> 0..6
@@ -24,16 +26,16 @@ export function buildShareText({
     return stages[idx];
   };
 
-  console.log('mode:', mode);
-
   const title = mode === "daily" ? "Daily Hangman" : "Custom Hangman";
   const hintText = hintUsed ? " (hint used)" : "";
+  const dateText = mode === "daily" && date ? `Date: ${date.slice(0, 10)}\n` : "";
 
   // ✅ One link that works for both daily + custom:
   const playUrl = `${origin}/hangman/i/${instanceId}`;
 
   return (
     `${title}${hintText}\n` +
+    dateText +
     `Mistakes: ${wrongGuesses}/${maxWrongGuesses} ${hangmanEmoji(wrongGuesses, maxWrongGuesses)}\n` +
     `Play: ${playUrl}`
   );
