@@ -194,7 +194,25 @@ export function parseRange(input: string | null): RangeKey {
   return "30d";
 }
 
-export function getDateRange(range: RangeKey) {
+function parseDateParam(input: string | null): Date | null {
+  if (!input || !/^\d{4}-\d{2}-\d{2}$/.test(input)) return null;
+
+  const [year, month, day] = input.split("-").map((v) => Number.parseInt(v, 10));
+  if (!year || !month || !day) return null;
+
+  const value = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(value.getTime())) return null;
+  return value;
+}
+
+export function getDateRange(range: RangeKey, customFromInput?: string | null, customToInput?: string | null) {
+  const customFrom = parseDateParam(customFromInput ?? null);
+  const customTo = parseDateParam(customToInput ?? null);
+
+  if (customFrom && customTo && customFrom <= customTo) {
+    return { from: customFrom, to: customTo };
+  }
+
   const to = new Date();
   const toUtc = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
 

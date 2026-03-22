@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const PLAYER_COLORS = ["#60a5fa", "#f97316", "#a78bfa", "#34d399", "#facc15", "#f472b6", "#22d3ee"];
+const SEMANTLE_BASE_PUZZLE = 1513;
+const SEMANTLE_BASE_DATE_UTC = new Date(Date.UTC(2026, 2, 22));
 
 type FollowItem = {
   profileId: string;
@@ -20,6 +22,7 @@ type BlockItem = {
 
 type CompareDay = {
   date: string;
+  importedOn?: string | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -60,9 +63,9 @@ type CompareResponse = {
   follows: CompareEntry[];
 };
 
-type GameKind = "hangman" | "wurple";
+type GameKind = "hangman" | "wurple" | "semantle";
 type ChartMetric = "wrongGuesses" | "guessedCount";
-type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge";
+type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge" | "semantle";
 
 type ChartDay = {
   date: string;
@@ -88,11 +91,13 @@ type TodayRow = {
   hangmanDay: CompareDay | null;
   wurpleEasyDay: CompareDay | null;
   wurpleChallengeDay: CompareDay | null;
+  semantleDay: CompareDay | null;
 };
 
 function emptyDay(date: string): CompareDay {
   return {
     date,
+    importedOn: null,
     attempted: false,
     completed: false,
     won: false,
@@ -132,6 +137,7 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
 }
 
 function formatShortDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   const [, month, day] = date.split("-");
   return `${Number(month)}/${Number(day)}`;
 }
@@ -142,6 +148,22 @@ function formatPercent(value: number) {
 
 function toDateKey(value: Date) {
   return value.toISOString().slice(0, 10);
+}
+
+function parseDateKey(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map((v) => Number.parseInt(v, 10));
+  if (!year || !month || !day) return null;
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function addDaysToDateKey(value: string, days: number) {
+  const parsed = parseDateKey(value);
+  if (!parsed) return "";
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return toDateKey(parsed);
 }
 
 function dayLabel(day: CompareDay | null, kind: GameKind) {
@@ -156,6 +178,11 @@ function dayLabel(day: CompareDay | null, kind: GameKind) {
     return `Lost · ${day.wrongGuesses ?? 0} wrong`;
   }
 
+  if (kind === "semantle") {
+    if (day.won) return `Solved · ${day.guessedCount} guesses`;
+    return `Missed · ${day.guessedCount} guesses`;
+  }
+
   if (day.won) return `Won in ${day.guessedCount}`;
   return `Lost in ${day.guessedCount}`;
 }
@@ -164,7 +191,50 @@ function findFollowDay(compare: CompareResponse | null, profileId: string, date:
   if (!compare) return null;
   const follow = compare.follows.find((f) => f.profileId === profileId);
   if (!follow) return null;
-  return follow.daily.find((d) => d.date === date) ?? null;
+  return follow.daily.find((d) => d.date === date || d.importedOn === date) ?? null;
+}
+
+function getChartTickStep(maxValue: number) {
+  if (maxValue <= 12) return 1;
+  if (maxValue <= 30) return 5;
+  if (maxValue <= 120) return 10;
+  if (maxValue <= 300) return 25;
+  return 50;
+}
+
+function getSemantleCurrentPuzzleKey(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+    const value = parts.find((p) => p.type === type)?.value ?? "0";
+    return Number.parseInt(value, 10);
+  };
+
+  const year = getPart("year");
+  const month = getPart("month");
+  const day = getPart("day");
+  const hour = getPart("hour");
+
+  const semantleDate = new Date(Date.UTC(year, month - 1, day));
+  if (hour >= 20) {
+    semantleDate.setUTCDate(semantleDate.getUTCDate() + 1);
+  }
+
+  const diffDays = Math.floor((semantleDate.getTime() - SEMANTLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+  return String(SEMANTLE_BASE_PUZZLE + diffDays);
+}
+
+function formatSemantlePuzzleTick(value: string) {
+  const puzzle = Number.parseInt(value, 10);
+  if (!Number.isFinite(puzzle)) return value;
+  return String(puzzle);
 }
 
 function buildLinePath(points: Array<{ x: number; y: number } | null>) {
@@ -199,11 +269,17 @@ function MetricLineChart({
   players,
   emptyMessage,
   highlightLegend,
+  yTickStepOverride,
+  minYMax,
+  xTickFormatter,
 }: {
   axisDates: string[];
   players: ChartSeries[];
   emptyMessage: string;
   highlightLegend?: string;
+  yTickStepOverride?: number;
+  minYMax?: number;
+  xTickFormatter?: (value: string) => string;
 }) {
   if (axisDates.length === 0) {
     return (
@@ -219,7 +295,9 @@ function MetricLineChart({
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const values = players.flatMap((player) => player.daily.map((day) => day.value).filter((value): value is number => value !== null));
-  const yMax = Math.max(6, values.length > 0 ? Math.max(...values) : 0);
+  const yMaxRaw = Math.max(6, values.length > 0 ? Math.max(...values) : 0);
+  const yTickStep = yTickStepOverride ?? getChartTickStep(yMaxRaw);
+  const yMax = Math.max(minYMax ?? 0, yTickStep, Math.ceil(yMaxRaw / yTickStep) * yTickStep);
 
   const xFor = (index: number) =>
     axisDates.length === 1 ? margin.left + plotWidth / 2 : margin.left + (index * plotWidth) / (axisDates.length - 1);
@@ -270,7 +348,7 @@ function MetricLineChart({
 
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-[320px] w-full min-w-[720px]">
-          {Array.from({ length: yMax + 1 }, (_, tick) => tick).map((tick) => {
+          {Array.from({ length: Math.floor(yMax / yTickStep) + 1 }, (_, index) => index * yTickStep).map((tick) => {
             const y = yFor(tick);
             return (
               <g key={tick}>
@@ -293,7 +371,7 @@ function MetricLineChart({
                 strokeWidth="1"
               />
               <text x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="11" fill="rgba(255,255,255,0.55)">
-                {formatShortDate(axisDates[index])}
+                {(xTickFormatter ?? formatShortDate)(axisDates[index])}
               </text>
             </g>
           ))}
@@ -483,6 +561,9 @@ function GameSection({
   variant,
   emptyMessage,
   highlightLegend,
+  yTickStep,
+  minYMax,
+  xTickFormatter,
 }: {
   title: string;
   subtitle: string;
@@ -491,6 +572,9 @@ function GameSection({
   variant: GameKind;
   emptyMessage: string;
   highlightLegend?: string;
+  yTickStep?: number;
+  minYMax?: number;
+  xTickFormatter?: (value: string) => string;
 }) {
   if (!compare) return null;
 
@@ -506,6 +590,9 @@ function GameSection({
         players={players}
         emptyMessage={emptyMessage}
         highlightLegend={highlightLegend}
+        yTickStepOverride={yTickStep}
+        minYMax={minYMax}
+        xTickFormatter={xTickFormatter}
       />
 
       <PlayerBreakdown players={players} variant={variant} />
@@ -535,7 +622,11 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
       );
     }
     const label =
-      kind === "hangman" ? `Won · ${day.wrongGuesses ?? 0}✗` : `Won · ${day.guessedCount}`;
+      kind === "hangman"
+        ? `Won · ${day.wrongGuesses ?? 0}✗`
+        : kind === "semantle"
+          ? `Solved · ${day.guessedCount}`
+          : `Won · ${day.guessedCount}`;
     return (
       <span className="inline-flex items-center rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-300">
         {label}
@@ -544,7 +635,11 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
   }
 
   const label =
-    kind === "hangman" ? `Lost · ${day.wrongGuesses ?? 0}✗` : `Lost · ${day.guessedCount}`;
+    kind === "hangman"
+      ? `Lost · ${day.wrongGuesses ?? 0}✗`
+      : kind === "semantle"
+        ? `Missed · ${day.guessedCount}`
+        : `Lost · ${day.guessedCount}`;
   return (
     <span className="inline-flex items-center rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400">
       {label}
@@ -555,7 +650,7 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
 function TodayGrid({ rows }: { rows: TodayRow[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[520px] border-collapse text-sm">
+      <table className="w-full min-w-[680px] border-collapse text-sm">
         <thead>
           <tr>
             <th className="w-[140px] pb-2.5 pr-4 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
@@ -569,6 +664,9 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
             </th>
             <th className="pb-2.5 pl-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
               Wurple Challenge
+            </th>
+            <th className="pb-2.5 pl-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
+              Semantle
             </th>
           </tr>
         </thead>
@@ -603,6 +701,9 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
               <td className="py-2.5 pl-3 align-middle">
                 <TodayStatusCell day={row.wurpleChallengeDay} kind="wurple" />
               </td>
+              <td className="py-2.5 pl-3 align-middle">
+                <TodayStatusCell day={row.semantleDay} kind="semantle" />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -626,11 +727,15 @@ export default function SocialPage() {
   const [hangmanCompare, setHangmanCompare] = useState<CompareResponse | null>(null);
   const [wurpleEasyCompare, setWurpleEasyCompare] = useState<CompareResponse | null>(null);
   const [wurpleChallengeCompare, setWurpleChallengeCompare] = useState<CompareResponse | null>(null);
+  const [semantleCompare, setSemantleCompare] = useState<CompareResponse | null>(null);
   const [wurpleError, setWurpleError] = useState<string | null>(null);
   const [follows, setFollows] = useState<FollowItem[]>([]);
   const [followers, setFollowers] = useState<FollowItem[]>([]);
   const [blockedPlayers, setBlockedPlayers] = useState<BlockItem[]>([]);
+  const [semantleText, setSemantleText] = useState("");
+  const [isImportingSemantle, setIsImportingSemantle] = useState(false);
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
+  const [chartFromDate, setChartFromDate] = useState("");
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
 
@@ -724,7 +829,7 @@ export default function SocialPage() {
     }
   }
 
-  async function loadAll(nextRange = range) {
+  async function loadAll(nextRange = range, nextChartFrom = chartFromDate) {
     try {
       setLoadError(null);
       setWurpleError(null);
@@ -753,12 +858,21 @@ export default function SocialPage() {
 
       await importLocalWurpleHistory();
 
-      const [linkRes, followsRes, hangmanRes, wurpleEasyRes, wurpleChallengeRes] = await Promise.all([
+      const compareParams = new URLSearchParams({ range: nextRange });
+      if (nextChartFrom) {
+        const nextChartTo = addDaysToDateKey(nextChartFrom, 29);
+        compareParams.set("from", nextChartFrom);
+        if (nextChartTo) compareParams.set("to", nextChartTo);
+      }
+      const compareQuery = compareParams.toString();
+
+      const [linkRes, followsRes, hangmanRes, wurpleEasyRes, wurpleChallengeRes, semantleRes] = await Promise.all([
         fetch("/api/social/follow-link", { cache: "no-store" }),
         fetch("/api/social/follows", { cache: "no-store" }),
-        fetch(`/api/social/compare/hangman?range=${nextRange}`, { cache: "no-store" }),
-        fetch(`/api/social/compare/wurple?range=${nextRange}&mode=easy`, { cache: "no-store" }),
-        fetch(`/api/social/compare/wurple?range=${nextRange}&mode=challenge`, { cache: "no-store" }),
+        fetch(`/api/social/compare/hangman?${compareQuery}`, { cache: "no-store" }),
+        fetch(`/api/social/compare/wurple?${compareQuery}&mode=easy`, { cache: "no-store" }),
+        fetch(`/api/social/compare/wurple?${compareQuery}&mode=challenge`, { cache: "no-store" }),
+        fetch(`/api/social/compare/semantle?${compareQuery}`, { cache: "no-store" }),
       ]);
 
       if (linkRes.ok) {
@@ -815,6 +929,12 @@ export default function SocialPage() {
         missingWurpleModes.push("challenge");
       }
 
+      if (semantleRes.ok) {
+        setSemantleCompare((await semantleRes.json()) as CompareResponse);
+      } else {
+        setSemantleCompare(null);
+      }
+
       if (missingWurpleModes.length === 2) {
         setWurpleError("Wurple social stats are not available yet.");
       } else if (missingWurpleModes.length === 1) {
@@ -828,12 +948,13 @@ export default function SocialPage() {
       setHangmanCompare(null);
       setWurpleEasyCompare(null);
       setWurpleChallengeCompare(null);
+      setSemantleCompare(null);
     }
   }
 
   useEffect(() => {
-    void loadAll(range);
-  }, [range, didImportLocalWurple]);
+    void loadAll(range, chartFromDate);
+  }, [range, didImportLocalWurple, chartFromDate]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -863,12 +984,15 @@ export default function SocialPage() {
   const hangmanPlayers = useMemo(() => buildPlayers(hangmanCompare, "wrongGuesses"), [hangmanCompare]);
   const wurpleEasyPlayers = useMemo(() => buildPlayers(wurpleEasyCompare, "guessedCount"), [wurpleEasyCompare]);
   const wurpleChallengePlayers = useMemo(() => buildPlayers(wurpleChallengeCompare, "guessedCount"), [wurpleChallengeCompare]);
+  const semantlePlayers = useMemo(() => buildPlayers(semantleCompare, "guessedCount"), [semantleCompare]);
+  const semantleTodayPuzzleKey = useMemo(() => getSemantleCurrentPuzzleKey(), []);
 
-  const todayKey = useMemo(() => {
-    const key = hangmanCompare?.to ?? wurpleEasyCompare?.to ?? wurpleChallengeCompare?.to;
-    if (typeof key === "string" && key.length > 0) return key;
-    return toDateKey(new Date());
-  }, [hangmanCompare?.to, wurpleEasyCompare?.to, wurpleChallengeCompare?.to]);
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+
+  const chartRangeLabel = useMemo(() => {
+    if (chartFromDate) return `${chartFromDate} → ${addDaysToDateKey(chartFromDate, 29)}`;
+    return range.toUpperCase();
+  }, [chartFromDate, range]);
 
   const followedTodayRows = useMemo(() => {
     return follows.map((follow) => ({
@@ -876,8 +1000,9 @@ export default function SocialPage() {
       hangmanDay: findFollowDay(hangmanCompare, follow.profileId, todayKey),
       wurpleEasyDay: findFollowDay(wurpleEasyCompare, follow.profileId, todayKey),
       wurpleChallengeDay: findFollowDay(wurpleChallengeCompare, follow.profileId, todayKey),
+      semantleDay: findFollowDay(semantleCompare, follow.profileId, semantleTodayPuzzleKey),
     }));
-  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, todayKey]);
+  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, todayKey, semantleTodayPuzzleKey]);
 
   const activeChart = useMemo(() => {
     if (activeChartTab === "hangman") {
@@ -889,6 +1014,9 @@ export default function SocialPage() {
         variant: "hangman" as GameKind,
         emptyMessage: "No daily Hangman schedule exists yet for this range.",
         highlightLegend: "Perfect game",
+        yTickStep: undefined,
+        minYMax: undefined,
+        xTickFormatter: undefined,
       };
     }
 
@@ -901,6 +1029,24 @@ export default function SocialPage() {
         variant: "wurple" as GameKind,
         emptyMessage: "No Wurple easy schedule exists yet for this range.",
         highlightLegend: undefined,
+        yTickStep: undefined,
+        minYMax: undefined,
+        xTickFormatter: undefined,
+      };
+    }
+
+    if (activeChartTab === "semantle") {
+      return {
+        title: "Semantle",
+        subtitle: "Guesses per Semantle puzzle number. Lower is better.",
+        compare: semantleCompare,
+        players: semantlePlayers,
+        variant: "semantle" as GameKind,
+        emptyMessage: "No Semantle results have been imported for this range yet.",
+        highlightLegend: undefined,
+        yTickStep: 10,
+        minYMax: 300,
+        xTickFormatter: formatSemantlePuzzleTick,
       };
     }
 
@@ -912,11 +1058,16 @@ export default function SocialPage() {
       variant: "wurple" as GameKind,
       emptyMessage: "No Wurple challenge schedule exists yet for this range.",
       highlightLegend: undefined,
+      yTickStep: undefined,
+      minYMax: undefined,
+      xTickFormatter: undefined,
     };
   }, [
     activeChartTab,
     hangmanCompare,
     hangmanPlayers,
+    semantleCompare,
+    semantlePlayers,
     wurpleEasyCompare,
     wurpleEasyPlayers,
     wurpleChallengeCompare,
@@ -932,14 +1083,15 @@ export default function SocialPage() {
       hangmanDay: hangmanCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
       wurpleEasyDay: wurpleEasyCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
       wurpleChallengeDay: wurpleChallengeCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
+      semantleDay: semantleCompare?.me.daily.find((d) => d.date === semantleTodayPuzzleKey) ?? null,
     }),
-    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, todayKey, profileHandle, profileDisplayName]
+    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, todayKey, semantleTodayPuzzleKey, profileHandle, profileDisplayName]
   );
 
   const todayGridRows = useMemo<TodayRow[]>(
     () => [
       myTodayRow,
-      ...followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay }) => ({
+      ...followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay, semantleDay }) => ({
         profileId: follow.profileId,
         label: follow.displayName ?? `@${follow.handle}`,
         handle: follow.handle,
@@ -947,6 +1099,7 @@ export default function SocialPage() {
         hangmanDay,
         wurpleEasyDay,
         wurpleChallengeDay,
+        semantleDay,
       })),
     ],
     [myTodayRow, followedTodayRows]
@@ -1074,6 +1227,40 @@ export default function SocialPage() {
     }
 
     setStatus(data.error ?? "Could not unblock this player");
+  }
+
+  async function importSemantleResult(e: React.FormEvent) {
+    e.preventDefault();
+    const text = semantleText.trim();
+    if (!text) return;
+
+    setStatus(null);
+    setIsImportingSemantle(true);
+    try {
+      const res = await fetch("/api/semantle/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === "INVALID_SEMANTLE_RESULT") {
+          setStatus("Could not parse that Semantle result. Paste the full shared block.");
+        } else {
+          setStatus(data.error ?? "Could not import Semantle result");
+        }
+        return;
+      }
+
+      setSemantleText("");
+      await loadAll(range);
+      setStatus(data.message ?? "Semantle result imported.");
+    } catch {
+      setStatus("Could not import Semantle result. Please refresh and try again.");
+    } finally {
+      setIsImportingSemantle(false);
+    }
   }
 
   async function saveProfileName(e: React.FormEvent) {
@@ -1229,7 +1416,29 @@ export default function SocialPage() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">History charts</h2>
-            <span className="text-xs text-text-muted">{range.toUpperCase()}</span>
+            <span className="text-xs text-text-muted">{chartRangeLabel}</span>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+              <span>Start</span>
+              <input
+                type="date"
+                value={chartFromDate}
+                onChange={(e) => setChartFromDate(e.target.value)}
+                className="rounded border border-white/10 bg-bg px-2 py-1 text-xs"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                setChartFromDate("");
+              }}
+              className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted"
+            >
+              Clear
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1237,6 +1446,7 @@ export default function SocialPage() {
               { id: "hangman", label: "Hangman" },
               { id: "wurpleEasy", label: "Wurple Easy" },
               { id: "wurpleChallenge", label: "Wurple Challenge" },
+              { id: "semantle", label: "Semantle" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1265,6 +1475,9 @@ export default function SocialPage() {
           variant={activeChart.variant}
           emptyMessage={activeChart.emptyMessage}
           highlightLegend={activeChart.highlightLegend}
+          yTickStep={activeChart.yTickStep}
+          minYMax={activeChart.minYMax}
+          xTickFormatter={activeChart.xTickFormatter}
         />
 
         {!activeChart.compare && (
@@ -1286,6 +1499,31 @@ export default function SocialPage() {
           <button type="submit" className="rounded-lg bg-easy px-4 py-2 text-sm font-bold text-white">
             Follow
           </button>
+        </form>
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
+        <div className="text-sm font-semibold">Import Semantle score</div>
+        <div className="text-xs text-text-muted">
+          Paste your shared Semantle result block and we&apos;ll save it to your profile.
+        </div>
+
+        <form onSubmit={importSemantleResult} className="space-y-2.5">
+          <textarea
+            value={semantleText}
+            onChange={(e) => setSemantleText(e.target.value)}
+            placeholder={"Semantle #1509\n✅ 29 Guesses\n🔝 Guess #27\n🥈 983/1000\n💡 0 Hints\nsemantle.com"}
+            className="min-h-28 w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+          />
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isImportingSemantle || semantleText.trim().length === 0}
+              className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isImportingSemantle ? "Importing..." : "Import score"}
+            </button>
+          </div>
         </form>
       </section>
 

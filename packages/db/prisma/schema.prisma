@@ -166,6 +166,25 @@ model WurpleDailyPlay {
   @@index([userId, date])
 }
 
+model SemantleDailyPlay {
+  id             String   @id @default(cuid())
+  puzzleNumber   Int
+  solved         Boolean  @default(false)
+  guessCount     Int?
+  topGuessNumber Int?
+  topScore       Int?
+  hintsUsed      Int?
+  rawText        String
+  sessionId      String
+  userId         String?
+  importedAt     DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([puzzleNumber, sessionId], name: "puzzle_session")
+  @@index([sessionId, importedAt])
+  @@index([userId, importedAt])
+}
+
 model SocialProfile {
   id          String   @id @default(cuid())
   handle      String   @unique
