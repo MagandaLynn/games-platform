@@ -73,6 +73,16 @@ type ChartSeries = {
   daily: ChartDay[];
 };
 
+type TodayRow = {
+  profileId: string;
+  label: string;
+  handle: string;
+  isMe: boolean;
+  hangmanDay: CompareDay | null;
+  wurpleEasyDay: CompareDay | null;
+  wurpleChallengeDay: CompareDay | null;
+};
+
 function emptyDay(date: string): CompareDay {
   return {
     date,
@@ -339,7 +349,7 @@ function GameSummaryGrid({ compare, variant }: { compare: CompareResponse; varia
           <>
             <SummaryCard label="Perfect games" value={me.summary.perfectCount} hint="Won with zero wrong guesses and no hint." />
             <SummaryCard label="Avg wrong guesses" value={me.summary.avgWrongGuesses.toFixed(2)} hint="Across completed dailies." />
-            <SummaryCard label="Avg total guesses" value={me.summary.avgGuesses.toFixed(2)} hint="Distinct letters guessed in completed dailies." />
+            <SummaryCard label="Win rate" value={formatPercent(me.summary.winRate)} hint="Completed games won out of total completed." />
           </>
         ) : (
           <>
@@ -409,10 +419,17 @@ function PlayerBreakdown({ players, variant }: { players: ChartSeries[]; variant
                 </>
               )}
 
-              <div>
-                <dt className="text-text-muted">Avg guesses</dt>
-                <dd className="font-semibold text-white">{player.summary.avgGuesses.toFixed(2)}</dd>
-              </div>
+              {variant === "hangman" ? (
+                <div>
+                  <dt className="text-text-muted">Win rate</dt>
+                  <dd className="font-semibold text-white">{formatPercent(player.summary.winRate)}</dd>
+                </div>
+              ) : (
+                <div>
+                  <dt className="text-text-muted">Avg guesses</dt>
+                  <dd className="font-semibold text-white">{player.summary.avgGuesses.toFixed(2)}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-text-muted">In progress</dt>
                 <dd className="font-semibold text-white">{player.summary.attemptedNotCompletedDays}</dd>
@@ -461,6 +478,104 @@ function GameSection({
       <GameSummaryGrid compare={compare} variant={variant} />
       <PlayerBreakdown players={players} variant={variant} />
     </section>
+  );
+}
+
+function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind }) {
+  if (!day || !day.attempted) {
+    return <span className="text-[11px] text-text-muted/40">—</span>;
+  }
+
+  if (!day.completed) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
+        Playing…
+      </span>
+    );
+  }
+
+  if (day.won) {
+    if (kind === "hangman" && day.perfect) {
+      return (
+        <span className="inline-flex items-center rounded-full border border-yellow-400/30 bg-yellow-400/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-300">
+          ★ Perfect
+        </span>
+      );
+    }
+    const label =
+      kind === "hangman" ? `Won · ${day.wrongGuesses ?? 0}✗` : `Won · ${day.guessedCount}`;
+    return (
+      <span className="inline-flex items-center rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-300">
+        {label}
+      </span>
+    );
+  }
+
+  const label =
+    kind === "hangman" ? `Lost · ${day.wrongGuesses ?? 0}✗` : `Lost · ${day.guessedCount}`;
+  return (
+    <span className="inline-flex items-center rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400">
+      {label}
+    </span>
+  );
+}
+
+function TodayGrid({ rows }: { rows: TodayRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[520px] border-collapse text-sm">
+        <thead>
+          <tr>
+            <th className="w-[140px] pb-2.5 pr-4 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
+              Player
+            </th>
+            <th className="pb-2.5 px-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
+              Hangman
+            </th>
+            <th className="pb-2.5 px-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
+              Wurple Easy
+            </th>
+            <th className="pb-2.5 pl-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
+              Wurple Challenge
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.profileId}
+              className={[
+                "border-t border-white/[0.06]",
+                row.isMe ? "bg-link/5" : "",
+              ].join(" ")}
+            >
+              <td className="py-2.5 pr-4 align-middle">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="max-w-[120px] truncate text-sm font-semibold leading-tight text-white">
+                    {row.label}
+                  </span>
+                  {row.isMe && (
+                    <span className="shrink-0 text-[10px] text-text-muted">you</span>
+                  )}
+                </div>
+                {!row.isMe && (
+                  <div className="text-[11px] text-text-muted">@{row.handle}</div>
+                )}
+              </td>
+              <td className="py-2.5 px-3 align-middle">
+                <TodayStatusCell day={row.hangmanDay} kind="hangman" />
+              </td>
+              <td className="py-2.5 px-3 align-middle">
+                <TodayStatusCell day={row.wurpleEasyDay} kind="wurple" />
+              </td>
+              <td className="py-2.5 pl-3 align-middle">
+                <TodayStatusCell day={row.wurpleChallengeDay} kind="wurple" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -755,6 +870,35 @@ export default function SocialPage() {
     wurpleChallengePlayers,
   ]);
 
+  const myTodayRow = useMemo<TodayRow>(
+    () => ({
+      profileId: "__me__",
+      label: profileDisplayName || `@${profileHandle || "you"}`,
+      handle: profileHandle,
+      isMe: true,
+      hangmanDay: hangmanCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
+      wurpleEasyDay: wurpleEasyCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
+      wurpleChallengeDay: wurpleChallengeCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
+    }),
+    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, todayKey, profileHandle, profileDisplayName]
+  );
+
+  const todayGridRows = useMemo<TodayRow[]>(
+    () => [
+      myTodayRow,
+      ...followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay }) => ({
+        profileId: follow.profileId,
+        label: follow.displayName ?? `@${follow.handle}`,
+        handle: follow.handle,
+        isMe: false,
+        hangmanDay,
+        wurpleEasyDay,
+        wurpleChallengeDay,
+      })),
+    ],
+    [myTodayRow, followedTodayRows]
+  );
+
   async function copyFollowLink() {
     if (!followUrl) return;
     await navigator.clipboard.writeText(`Follow my game results: ${followUrl}`);
@@ -923,34 +1067,14 @@ export default function SocialPage() {
 
       <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Today by followed players</h2>
+          <h2 className="text-sm font-semibold">Today</h2>
           <div className="text-xs text-text-muted">{todayKey}</div>
         </div>
 
-        {followedTodayRows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-center text-sm text-text-muted">
-            Follow players to see their daily stats snapshot.
-          </div>
-        ) : (
-          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-            {followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay }) => (
-              <div key={follow.profileId} className="rounded-lg border border-white/10 bg-black/10 p-3">
-                <div className="text-sm font-semibold text-white leading-tight">{follow.displayName ?? `@${follow.handle}`}</div>
-                <div className="mt-1 text-[11px] text-text-muted">@{follow.handle}</div>
-                <div className="mt-2 space-y-1 text-xs text-text-muted">
-                  <div>
-                    <span className="font-semibold text-white">Hangman:</span> {dayLabel(hangmanDay, "hangman")}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-white">Wurple Easy:</span> {dayLabel(wurpleEasyDay, "wurple")}
-                  </div>
-                  <div>
-                    <span className="font-semibold text-white">Wurple Challenge:</span> {dayLabel(wurpleChallengeDay, "wurple")}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <TodayGrid rows={todayGridRows} />
+
+        {follows.length === 0 && (
+          <p className="text-center text-xs text-text-muted">Follow players to compare your daily results.</p>
         )}
       </section>
 
