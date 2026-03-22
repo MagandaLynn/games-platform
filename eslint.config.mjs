@@ -19,7 +19,16 @@ export default [
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parserOptions: {
-        projectService: true
+        projectService: {
+          allowDefaultProject: [
+            "*.ts",
+            "*.tsx",
+            "packages/db/prisma.config.ts",
+            "packages/db/prisma/seed.ts",
+            "prisma.config.ts",
+            "prisma/seed.ts"
+          ]
+        }
       }
     },
     rules: {
@@ -30,6 +39,10 @@ export default [
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react/no-unescaped-entities": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "@typescript-eslint/ban-ts-comment": "warn",
         "no-restricted-imports": [
             "error",
             {

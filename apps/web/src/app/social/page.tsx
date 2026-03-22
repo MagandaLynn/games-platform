@@ -23,6 +23,11 @@ type BlockItem = {
 type CompareDay = {
   date: string;
   importedOn?: string | null;
+  semantleRawText?: string | null;
+  semantlePuzzleNumber?: number | null;
+  semantleTopGuessNumber?: number | null;
+  semantleTopScore?: number | null;
+  semantleHintsUsed?: number | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -57,6 +62,8 @@ type CompareResponse = {
   range: "30d" | "90d" | "all";
   from: string | null;
   to: string;
+  isCapped?: boolean;
+  maxLookbackDays?: number;
   availableDays: number;
   axisDates: string[];
   me: CompareEntry;
@@ -71,8 +78,20 @@ type ChartDay = {
   date: string;
   attempted: boolean;
   completed: boolean;
+  won: boolean;
+  lost: boolean;
+  wrongGuesses: number | null;
+  guessedCount: number;
+  hintUsed: boolean;
+  perfect: boolean;
   value: number | null;
   highlight: boolean;
+  importedOn?: string | null;
+  semantleRawText?: string | null;
+  semantlePuzzleNumber?: number | null;
+  semantleTopGuessNumber?: number | null;
+  semantleTopScore?: number | null;
+  semantleHintsUsed?: number | null;
 };
 
 type ChartSeries = {
@@ -98,6 +117,11 @@ function emptyDay(date: string): CompareDay {
   return {
     date,
     importedOn: null,
+    semantleRawText: null,
+    semantlePuzzleNumber: null,
+    semantleTopGuessNumber: null,
+    semantleTopScore: null,
+    semantleHintsUsed: null,
     attempted: false,
     completed: false,
     won: false,
@@ -124,6 +148,12 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
         date,
         attempted: day.attempted,
         completed: day.completed,
+        won: day.won,
+        lost: day.lost,
+        wrongGuesses: day.wrongGuesses,
+        guessedCount: day.guessedCount,
+        hintUsed: day.hintUsed,
+        perfect: day.perfect,
         value:
           metric === "wrongGuesses"
             ? day.wrongGuesses
@@ -131,6 +161,12 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
               ? Math.max(day.guessedCount, 1)
               : null,
         highlight: metric === "wrongGuesses" && day.perfect,
+        importedOn: day.importedOn ?? null,
+        semantleRawText: day.semantleRawText ?? null,
+        semantlePuzzleNumber: day.semantlePuzzleNumber ?? null,
+        semantleTopGuessNumber: day.semantleTopGuessNumber ?? null,
+        semantleTopScore: day.semantleTopScore ?? null,
+        semantleHintsUsed: day.semantleHintsUsed ?? null,
       };
     }),
   }));
@@ -237,6 +273,76 @@ function formatSemantlePuzzleTick(value: string) {
   return String(puzzle);
 }
 
+function formatSemantleDetailText(day: ChartDay) {
+  if (day.semantleRawText) return day.semantleRawText;
+
+  const puzzle = day.semantlePuzzleNumber ?? Number.parseInt(day.date, 10);
+  const solved = day.completed && day.value !== null;
+  const guesses = day.value ?? 0;
+  const topGuess = day.semantleTopGuessNumber ?? null;
+  const topScore = day.semantleTopScore ?? null;
+  const hints = day.semantleHintsUsed ?? 0;
+
+  return [
+    `Semantle #${Number.isFinite(puzzle) ? puzzle : day.date}`,
+    `${solved ? "✅" : "❌"} ${guesses} Guesses`,
+    `🔝 Guess #${topGuess ?? "—"}`,
+    `🥈 ${topScore ?? "—"}/1000`,
+    `💡 ${hints} Hints`,
+    "semantle.com",
+  ].join("\n");
+}
+
+function formatHangmanDetailText(day: ChartDay) {
+  const status = day.completed ? (day.won ? "✅ Won" : day.lost ? "❌ Lost" : "Completed") : "🕓 In progress";
+  const wrong = day.wrongGuesses ?? 0;
+  const guesses = day.guessedCount;
+  const hint = day.hintUsed ? "Yes" : "No";
+  const perfect = day.perfect ? "Yes" : "No";
+
+  return [
+    `Hangman ${day.date}`,
+    status,
+    `❌ Wrong guesses: ${wrong}`,
+    `🔤 Total guesses: ${guesses}`,
+    `💡 Hint used: ${hint}`,
+    `⭐ Perfect: ${perfect}`,
+  ].join("\n");
+}
+
+function sanitizeWurpleGuesses(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim().toUpperCase() : ""))
+    .filter((item) => /^[0-9A-F]{6}$/.test(item));
+}
+
+function WurpleColorSwatch({ hex }: { hex: string }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const color = `#${hex}`;
+    const size = canvas.width;
+    const radius = size / 2;
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.stroke();
+  }, [hex]);
+
+  return <canvas ref={ref} width={26} height={26} className="h-[26px] w-[26px] rounded-full" aria-hidden />;
+}
+
 function buildLinePath(points: Array<{ x: number; y: number } | null>) {
   let path = "";
   let drawing = false;
@@ -272,6 +378,8 @@ function MetricLineChart({
   yTickStepOverride,
   minYMax,
   xTickFormatter,
+  variant,
+  onPointSelect,
 }: {
   axisDates: string[];
   players: ChartSeries[];
@@ -280,6 +388,8 @@ function MetricLineChart({
   yTickStepOverride?: number;
   minYMax?: number;
   xTickFormatter?: (value: string) => string;
+  variant: GameKind;
+  onPointSelect?: (payload: { playerLabel: string; day: ChartDay; variant: GameKind; profileId: string }) => void;
 }) {
   if (axisDates.length === 0) {
     return (
@@ -408,6 +518,12 @@ function MetricLineChart({
                       fill={day.highlight ? "white" : player.color}
                       stroke={player.color}
                       strokeWidth="2"
+                      className={variant === "semantle" || variant === "hangman" || variant === "wurple" ? "cursor-pointer" : undefined}
+                      onClick={
+                        variant === "semantle" || variant === "hangman" || variant === "wurple"
+                          ? () => onPointSelect?.({ playerLabel: player.label, day, variant, profileId: player.profileId })
+                          : undefined
+                      }
                     />
                   );
                 })}
@@ -564,6 +680,7 @@ function GameSection({
   yTickStep,
   minYMax,
   xTickFormatter,
+  onPointSelect,
 }: {
   title: string;
   subtitle: string;
@@ -575,6 +692,7 @@ function GameSection({
   yTickStep?: number;
   minYMax?: number;
   xTickFormatter?: (value: string) => string;
+  onPointSelect?: (payload: { playerLabel: string; day: ChartDay; variant: GameKind; profileId: string }) => void;
 }) {
   if (!compare) return null;
 
@@ -593,6 +711,8 @@ function GameSection({
         yTickStepOverride={yTickStep}
         minYMax={minYMax}
         xTickFormatter={xTickFormatter}
+        variant={variant}
+        onPointSelect={onPointSelect}
       />
 
       <PlayerBreakdown players={players} variant={variant} />
@@ -649,65 +769,44 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
 
 function TodayGrid({ rows }: { rows: TodayRow[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] border-collapse text-sm">
-        <thead>
-          <tr>
-            <th className="w-[140px] pb-2.5 pr-4 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
-              Player
-            </th>
-            <th className="pb-2.5 px-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
-              Hangman
-            </th>
-            <th className="pb-2.5 px-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
-              Wurple Easy
-            </th>
-            <th className="pb-2.5 pl-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
-              Wurple Challenge
-            </th>
-            <th className="pb-2.5 pl-3 text-left text-[11px] font-normal uppercase tracking-wide text-text-muted">
-              Semantle
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.profileId}
-              className={[
-                "border-t border-white/[0.06]",
-                row.isMe ? "bg-link/5" : "",
-              ].join(" ")}
-            >
-              <td className="py-2.5 pr-4 align-middle">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="max-w-[120px] truncate text-sm font-semibold leading-tight text-white">
-                    {row.label}
-                  </span>
-                  {row.isMe && (
-                    <span className="shrink-0 text-[10px] text-text-muted">you</span>
-                  )}
-                </div>
-                {!row.isMe && (
-                  <div className="text-[11px] text-text-muted">@{row.handle}</div>
-                )}
-              </td>
-              <td className="py-2.5 px-3 align-middle">
-                <TodayStatusCell day={row.hangmanDay} kind="hangman" />
-              </td>
-              <td className="py-2.5 px-3 align-middle">
-                <TodayStatusCell day={row.wurpleEasyDay} kind="wurple" />
-              </td>
-              <td className="py-2.5 pl-3 align-middle">
-                <TodayStatusCell day={row.wurpleChallengeDay} kind="wurple" />
-              </td>
-              <td className="py-2.5 pl-3 align-middle">
-                <TodayStatusCell day={row.semantleDay} kind="semantle" />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+      {rows.map((row) => (
+        <article
+          key={row.profileId}
+          className={[
+            "rounded-lg border border-white/10 bg-black/10 p-3",
+            row.isMe ? "border-link/40 bg-link/5" : "",
+          ].join(" ")}
+        >
+          <div className="mb-2 flex items-baseline gap-1.5">
+            <span className="text-sm font-semibold text-white">{row.label}</span>
+            {row.isMe ? (
+              <span className="text-[10px] text-text-muted">you</span>
+            ) : (
+              <span className="text-[11px] text-text-muted">@{row.handle}</span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Hangman</span>
+              <TodayStatusCell day={row.hangmanDay} kind="hangman" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Wurple Easy</span>
+              <TodayStatusCell day={row.wurpleEasyDay} kind="wurple" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Wurple Challenge</span>
+              <TodayStatusCell day={row.wurpleChallengeDay} kind="wurple" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Semantle</span>
+              <TodayStatusCell day={row.semantleDay} kind="semantle" />
+            </div>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -715,7 +814,6 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
 export default function SocialPage() {
   const [followUrl, setFollowUrl] = useState("");
   const [followToken, setFollowToken] = useState("");
-  const followUrlInputRef = useRef<HTMLInputElement | null>(null);
   const [followInput, setFollowInput] = useState("");
   const [profileHandle, setProfileHandle] = useState<string>("");
   const [profileDisplayName, setProfileDisplayName] = useState<string>("");
@@ -737,6 +835,16 @@ export default function SocialPage() {
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
   const [chartFromDate, setChartFromDate] = useState("");
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
+  const [selectedDetailPoint, setSelectedDetailPoint] = useState<{
+    title: string;
+    playerLabel: string;
+    detailText: string;
+    variant: GameKind;
+    wurpleGuesses?: string[];
+    wurpleSeed?: string;
+    wurpleMode?: "easy" | "challenge";
+  } | null>(null);
+  const [localWurpleGuessMap, setLocalWurpleGuessMap] = useState<Record<string, string[]>>({});
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
 
   async function importLocalWurpleHistory() {
@@ -770,6 +878,7 @@ export default function SocialPage() {
       guessCount: number;
       completedAt: string | null;
     }> = [];
+    const localGuessMap: Record<string, string[]> = {};
 
     try {
       for (let i = 0; i < window.localStorage.length; i++) {
@@ -796,7 +905,10 @@ export default function SocialPage() {
         if (parsed.seed !== seed || parsed.mode !== mode) continue;
         if (parsed.status !== "playing" && parsed.status !== "won" && parsed.status !== "lost") continue;
 
-        const guessCount = Array.isArray(parsed.guesses) ? parsed.guesses.length : 0;
+        const guesses = sanitizeWurpleGuesses(parsed.guesses);
+        const guessCount = guesses.length;
+
+        localGuessMap[`${mode}:${seed}`] = guesses;
 
         entries.push({
           seed,
@@ -809,6 +921,8 @@ export default function SocialPage() {
     } catch {
       // ignore localStorage errors
     }
+
+    setLocalWurpleGuessMap(localGuessMap);
 
     if (entries.length === 0) {
       setDidImportLocalWurple(true);
@@ -955,6 +1069,10 @@ export default function SocialPage() {
   useEffect(() => {
     void loadAll(range, chartFromDate);
   }, [range, didImportLocalWurple, chartFromDate]);
+
+  useEffect(() => {
+    setSelectedDetailPoint(null);
+  }, [activeChartTab, range, chartFromDate]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1121,27 +1239,30 @@ export default function SocialPage() {
     }
 
     try {
-      const input = followUrlInputRef.current;
-      if (input) {
-        input.focus();
-        input.select();
-        input.setSelectionRange(0, input.value.length);
-      }
-
-      const copied = document.execCommand("copy");
-      if (copied) {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
         setCopyFeedback("success");
         setTimeout(() => setCopyFeedback("idle"), 1600);
         setStatus("Follow link copied!");
         return;
       }
     } catch {
-      // continue to modern clipboard fallback
+      // continue to legacy fallback
     }
 
     try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(textToCopy);
+      const ta = document.createElement("textarea");
+      ta.value = textToCopy;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(ta);
+
+      if (copied) {
         setCopyFeedback("success");
         setTimeout(() => setCopyFeedback("idle"), 1600);
         setStatus("Follow link copied!");
@@ -1153,7 +1274,7 @@ export default function SocialPage() {
 
     setCopyFeedback("error");
     setTimeout(() => setCopyFeedback("idle"), 1600);
-    setStatus("Could not copy link. Please select the field and copy manually.");
+    setStatus("Could not copy link. Please try again.");
   }
 
   async function followByHandleOrToken(e: React.FormEvent) {
@@ -1305,7 +1426,7 @@ export default function SocialPage() {
           </p>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm md:self-auto self-start">
           <span className="text-text-muted">Range</span>
           <select
             value={range}
@@ -1325,79 +1446,58 @@ export default function SocialPage() {
         </div>
       )}
 
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Overview</div>
+
       <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Profile & share</h2>
+          <h2 className="text-sm font-semibold">Profile</h2>
           <span className="text-xs text-text-muted">@{profileHandle || "player"}</span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2.5">
-            <div className="text-sm font-semibold">Display name</div>
-            <div className="text-xs text-text-muted">
-              This name appears in social compare views.
-            </div>
-            <div className="text-xs text-text-muted">
-              Your handle: <span className="font-semibold text-white">@{profileHandle || "player"}</span>
-            </div>
-            <form onSubmit={saveProfileName} className="flex gap-2">
-              <input
-                value={profileInput}
-                onChange={(e) => setProfileInput(e.target.value)}
-                placeholder={`Display name (or use @${profileHandle || "player"})`}
-                className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-                maxLength={40}
-              />
-              <button
-                type="submit"
-                disabled={isSavingProfile}
-                className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isSavingProfile ? "Saving..." : "Save"}
-              </button>
-            </form>
-            {profileDisplayName && (
-              <div className="text-xs text-text-muted">
-                Current name: <span className="font-semibold text-white">{profileDisplayName}</span>
-              </div>
-            )}
+        <div className="space-y-2.5">
+          <div className="text-sm font-semibold">Display name</div>
+          <div className="text-xs text-text-muted">
+            This name appears in social compare views.
           </div>
-
-          <div className="space-y-2.5">
-            <div className="text-sm font-semibold">Share follow link</div>
+          <form onSubmit={saveProfileName} className="flex flex-col gap-2 sm:flex-row">
+            <input
+              value={profileInput}
+              onChange={(e) => setProfileInput(e.target.value)}
+              placeholder={`Display name (or use @${profileHandle || "player"})`}
+              className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+              maxLength={40}
+            />
+            <button
+              type="submit"
+              disabled={isSavingProfile}
+              className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed sm:min-w-[92px]"
+            >
+              {isSavingProfile ? "Saving..." : "Save"}
+            </button>
+          </form>
+          {profileDisplayName && (
             <div className="text-xs text-text-muted">
-              Anyone with this link can follow your profile.
+              Current name: <span className="font-semibold text-white">{profileDisplayName}</span>
             </div>
-            <div className="flex gap-2">
-              <input
-                ref={followUrlInputRef}
-                readOnly
-                value={followUrl}
-                className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <button
-                type="button"
-                onClick={copyFollowLink}
-                disabled={!followUrl && !followToken}
-                className={[
-                  "rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed",
-                  copyFeedback === "success" ? "bg-emerald-600" : copyFeedback === "error" ? "bg-red-600" : "bg-link",
-                ].join(" ")}
-              >
-                {copyFeedback === "success" ? "Copied!" : copyFeedback === "error" ? "Copy failed" : "Copy"}
-              </button>
-            </div>
-            <div className="text-[11px] text-text-muted">
-              {copyFeedback === "success"
-                ? "✓ Copied to clipboard"
-                : copyFeedback === "error"
-                  ? "Copy was blocked — select the link field and press ⌘C"
-                  : ""}
-            </div>
+          )}
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={copyFollowLink}
+              disabled={!followUrl && !followToken}
+              className={[
+                "rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed",
+                copyFeedback === "success" ? "bg-emerald-600" : copyFeedback === "error" ? "bg-red-600" : "bg-link",
+              ].join(" ")}
+            >
+              {copyFeedback === "success" ? "Link copied!" : copyFeedback === "error" ? "Copy failed" : "Share follow link"}
+            </button>
           </div>
         </div>
       </section>
+
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Activity</div>
 
       <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -1478,7 +1578,60 @@ export default function SocialPage() {
           yTickStep={activeChart.yTickStep}
           minYMax={activeChart.minYMax}
           xTickFormatter={activeChart.xTickFormatter}
+          onPointSelect={({ playerLabel, day, variant, profileId }) => {
+            if (variant === "semantle") {
+              setSelectedDetailPoint({
+                title: "Semantle result details",
+                playerLabel,
+                detailText: formatSemantleDetailText(day),
+                variant,
+              });
+              return;
+            }
+
+            if (variant === "hangman") {
+              setSelectedDetailPoint({
+                title: "Hangman result details",
+                playerLabel,
+                detailText: formatHangmanDetailText(day),
+                variant,
+              });
+              return;
+            }
+
+            if (variant === "wurple") {
+              const isMe = profileId === activeChart.compare?.me.profileId;
+              const mode = activeChartTab === "wurpleChallenge" ? "challenge" : "easy";
+              const wurpleGuesses = isMe ? (localWurpleGuessMap[`${mode}:${day.date}`] ?? []) : [];
+
+              setSelectedDetailPoint({
+                title: `Wurple ${mode === "easy" ? "Easy" : "Challenge"} details`,
+                playerLabel,
+                detailText: [
+                  `Wurple ${day.date}`,
+                  `${day.completed ? (day.won ? "✅ Won" : "❌ Lost") : "🕓 In progress"}`,
+                  `🔢 Guesses: ${day.guessedCount}`,
+                ].join("\n"),
+                variant,
+                wurpleGuesses,
+                wurpleSeed: day.date,
+                wurpleMode: mode,
+              });
+            }
+          }}
         />
+
+        {(activeChart.variant === "semantle" || activeChart.variant === "hangman" || activeChart.variant === "wurple") && (
+          <p className="text-xs text-text-muted">
+            Click any {activeChart.variant === "semantle" ? "Semantle" : activeChart.variant === "hangman" ? "Hangman" : "Wurple"} chart dot to open full result details.
+          </p>
+        )}
+
+        {activeChart.compare?.isCapped && (
+          <p className="text-xs text-amber-300">
+            Showing the most recent {activeChart.compare.maxLookbackDays ?? 365} days.
+          </p>
+        )}
 
         {!activeChart.compare && (
           <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center text-sm text-text-muted">
@@ -1487,20 +1640,7 @@ export default function SocialPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
-        <div className="text-sm font-semibold">Follow someone</div>
-        <form onSubmit={followByHandleOrToken} className="flex gap-2">
-          <input
-            value={followInput}
-            onChange={(e) => setFollowInput(e.target.value)}
-            placeholder="@handle or follow link"
-            className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-          />
-          <button type="submit" className="rounded-lg bg-easy px-4 py-2 text-sm font-bold text-white">
-            Follow
-          </button>
-        </form>
-      </section>
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Imports</div>
 
       <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
         <div className="text-sm font-semibold">Import Semantle score</div>
@@ -1512,7 +1652,7 @@ export default function SocialPage() {
           <textarea
             value={semantleText}
             onChange={(e) => setSemantleText(e.target.value)}
-            placeholder={"Semantle #1509\n✅ 29 Guesses\n🔝 Guess #27\n🥈 983/1000\n💡 0 Hints\nsemantle.com"}
+            placeholder={"Semantle #1209\n✅ 200 Guesses\n🔝 Guess #199\n🥈 983/1000\n💡 0 Hints\nsemantle.com"}
             className="min-h-28 w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
           />
           <div className="flex justify-end">
@@ -1525,6 +1665,27 @@ export default function SocialPage() {
             </button>
           </div>
         </form>
+      </section>
+
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Social connections</div>
+
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-4">
+        <h2 className="text-sm font-semibold">Follow people</h2>
+
+        <div className="space-y-2.5">
+          <div className="text-sm font-semibold">Follow someone</div>
+          <form onSubmit={followByHandleOrToken} className="flex flex-col gap-2 sm:flex-row">
+            <input
+              value={followInput}
+              onChange={(e) => setFollowInput(e.target.value)}
+              placeholder="@handle or follow link"
+              className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+            />
+            <button type="submit" className="rounded-lg bg-easy px-4 py-2 text-sm font-bold text-white sm:min-w-[96px]">
+              Follow
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
@@ -1540,12 +1701,12 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {follows.length === 0 && <p className="text-sm text-text-muted">You are not following anyone yet.</p>}
           {follows.map((f) => (
-            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
+            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   type="button"
                   onClick={() => void blockPlayer(f.profileId)}
@@ -1579,7 +1740,7 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {followers.length === 0 && <p className="text-sm text-text-muted">No one follows you yet.</p>}
           {followers.map((f) => (
-            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
+            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
@@ -1587,7 +1748,7 @@ export default function SocialPage() {
               <button
                 type="button"
                 onClick={() => void blockPlayer(f.profileId)}
-                className="text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300"
+                className="self-end text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300 sm:self-auto"
               >
                 Block
               </button>
@@ -1609,7 +1770,7 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {blockedPlayers.length === 0 && <p className="text-sm text-text-muted">You have not blocked anyone.</p>}
           {blockedPlayers.map((f) => (
-            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
+            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
@@ -1617,7 +1778,7 @@ export default function SocialPage() {
               <button
                 type="button"
                 onClick={() => void unblockPlayer(f.profileId)}
-                className="text-xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300"
+                className="self-end text-xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300 sm:self-auto"
               >
                 Unblock
               </button>
@@ -1625,6 +1786,66 @@ export default function SocialPage() {
           ))}
         </div>
       </section>
+
+      {selectedDetailPoint && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setSelectedDetailPoint(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-white/10 bg-bg p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">{selectedDetailPoint.title}</h3>
+                <p className="mt-1 text-xs text-text-muted">{selectedDetailPoint.playerLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDetailPoint(null)}
+                className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted"
+              >
+                Close
+              </button>
+            </div>
+
+            <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white">
+              {selectedDetailPoint.detailText}
+            </pre>
+
+            {selectedDetailPoint.variant === "wurple" && (
+              <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+                {selectedDetailPoint.wurpleSeed && selectedDetailPoint.wurpleMode && (
+                  <div className="mb-3">
+                    <div className="mb-2 text-[11px] uppercase tracking-wide text-text-muted">Answer</div>
+                    <img
+                      alt="Wurple answer color"
+                      src={`/api/wurple/target?seed=${encodeURIComponent(selectedDetailPoint.wurpleSeed)}&mode=${selectedDetailPoint.wurpleMode}`}
+                      className="h-14 w-full max-w-[220px] rounded-lg border border-white/20 object-cover"
+                      draggable={false}
+                    />
+                  </div>
+                )}
+
+                <div className="mb-2 text-[11px] uppercase tracking-wide text-text-muted">Chosen colors</div>
+                {selectedDetailPoint.wurpleGuesses && selectedDetailPoint.wurpleGuesses.length > 0 ? (
+                  <div className="flex flex-wrap gap-2" onContextMenu={(e) => e.preventDefault()}>
+                    {selectedDetailPoint.wurpleGuesses.map((hex, index) => (
+                      <div key={`${hex}-${index}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-2 py-1">
+                        <WurpleColorSwatch hex={hex} />
+                        <span className="text-[11px] text-white/90">Guess {index + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-text-muted">Color swatches are available for your locally saved Wurple runs.</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {status && <p className="text-sm text-emerald-400">{status}</p>}
     </main>

@@ -2,6 +2,7 @@ import { prisma } from "@playseed/db";
 import { getBlockedProfileIds, getBlockingProfileIds, getDateRange, parseRange, resolveOrCreateProfile } from "../../_shared";
 
 export const runtime = "nodejs";
+const MAX_LOOKBACK_DAYS = 365;
 
 type DailyPoint = {
   date: string;
@@ -36,6 +37,17 @@ type RawPlay = {
 
 function toDateKey(value: Date) {
   return value.toISOString().slice(0, 10);
+}
+
+function addDaysUTC(base: Date, days: number) {
+  const d = new Date(base);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+function getCappedFrom(from: Date, to: Date) {
+  const minFrom = addDaysUTC(to, -(MAX_LOOKBACK_DAYS - 1));
+  return from < minFrom ? minFrom : from;
 }
 
 function isCompleted(status: string) {
@@ -135,24 +147,102 @@ async function collectForProfile(
   const totalGuesses = daily.reduce((sum, d) => sum + (d.completed ? d.guessedCount : 0), 0);
   const hintUsedCount = daily.filter((d) => d.completed && d.hintUsed).length;
 
+  const summary = {
+    totalPlayed: attemptedDays,
+    totalCompleted,
+    attemptedNotCompletedDays,
+    totalWon,
+    totalLost,
+    perfectCount,
+    avgWrongGuesses: totalCompleted ? Number((totalWrong / totalCompleted).toFixed(2)) : 0,
+    avgGuesses: totalCompleted ? Number((totalGuesses / totalCompleted).toFixed(2)) : 0,
+    winRate: totalCompleted ? Number((totalWon / totalCompleted).toFixed(2)) : 0,
+    hintUsageRate: totalCompleted ? Number((hintUsedCount / totalCompleted).toFixed(2)) : 0,
+    perfectRate: totalCompleted ? Number((perfectCount / totalCompleted).toFixed(2)) : 0,
+  };
+
   return {
     profileId: profile.id,
     handle: profile.handle,
     displayName: profile.displayName,
-    summary: {
-      totalPlayed: attemptedDays,
-      totalCompleted,
-      attemptedNotCompletedDays,
-      totalWon,
-      totalLost,
-      perfectCount,
-      avgWrongGuesses: totalCompleted ? Number((totalWrong / totalCompleted).toFixed(2)) : 0,
-      avgGuesses: totalCompleted ? Number((totalGuesses / totalCompleted).toFixed(2)) : 0,
-      winRate: totalCompleted ? Number((totalWon / totalCompleted).toFixed(2)) : 0,
-      hintUsageRate: totalCompleted ? Number((hintUsedCount / totalCompleted).toFixed(2)) : 0,
-      perfectRate: totalCompleted ? Number((perfectCount / totalCompleted).toFixed(2)) : 0,
-    },
+    summary,
     daily,
+  };
+}
+
+async function collectLifetimeSummaryForProfile(profile: ProfileRef, to: Date) {
+  const plays = (await prisma.hangmanPlay.findMany({
+    where: {
+      OR: [
+        { sessionId: profile.sessionId },
+        ...(profile.userId ? [{ userId: profile.userId }] : []),
+      ],
+      instance: {
+        mode: "daily",
+        date: { lte: to },
+      },
+    },
+    include: {
+      instance: {
+        select: {
+          date: true,
+        },
+      },
+    },
+    orderBy: [{ instance: { date: "asc" } }, { updatedAt: "desc" }],
+  })) as RawPlay[];
+
+  const bestPlayByDay = new Map<string, RawPlay>();
+  for (const p of plays) {
+    const day = toDateKey(p.instance.date);
+    bestPlayByDay.set(day, chooseBetterPlay(bestPlayByDay.get(day), p));
+  }
+
+  const daily: DailyPoint[] = Array.from(bestPlayByDay.values()).map((play) => {
+    const attempted = wasAttempted(play);
+    const completed = isCompleted(play.status);
+    const won = play.status === "won";
+    const lost = play.status === "lost";
+    const guessedCount = attempted ? play.guessed.length : 0;
+    const wrongGuesses = attempted ? play.wrongGuesses : null;
+    const hintUsed = Boolean(play.hintUsed);
+    const perfect = Boolean(won && wrongGuesses === 0 && !hintUsed);
+
+    return {
+      date: toDateKey(play.instance.date),
+      attempted,
+      completed,
+      won,
+      lost,
+      wrongGuesses,
+      guessedCount,
+      hintUsed,
+      perfect,
+    };
+  });
+
+  const attemptedDays = daily.filter((d) => d.attempted).length;
+  const totalCompleted = daily.filter((d) => d.completed).length;
+  const attemptedNotCompletedDays = daily.filter((d) => d.attempted && !d.completed).length;
+  const totalWon = daily.filter((d) => d.won).length;
+  const totalLost = daily.filter((d) => d.lost).length;
+  const perfectCount = daily.filter((d) => d.perfect).length;
+  const totalWrong = daily.reduce((sum, d) => sum + (d.completed && d.wrongGuesses !== null ? d.wrongGuesses : 0), 0);
+  const totalGuesses = daily.reduce((sum, d) => sum + (d.completed ? d.guessedCount : 0), 0);
+  const hintUsedCount = daily.filter((d) => d.completed && d.hintUsed).length;
+
+  return {
+    totalPlayed: attemptedDays,
+    totalCompleted,
+    attemptedNotCompletedDays,
+    totalWon,
+    totalLost,
+    perfectCount,
+    avgWrongGuesses: totalCompleted ? Number((totalWrong / totalCompleted).toFixed(2)) : 0,
+    avgGuesses: totalCompleted ? Number((totalGuesses / totalCompleted).toFixed(2)) : 0,
+    winRate: totalCompleted ? Number((totalWon / totalCompleted).toFixed(2)) : 0,
+    hintUsageRate: totalCompleted ? Number((hintUsedCount / totalCompleted).toFixed(2)) : 0,
+    perfectRate: totalCompleted ? Number((perfectCount / totalCompleted).toFixed(2)) : 0,
   };
 }
 
@@ -187,8 +277,12 @@ export async function GET(req: Request) {
 
     const filteredFollows = follows.filter((f) => !blockedIds.has(f.followingProfileId));
 
+    const requestedFrom = from ?? addDaysUTC(to, -29);
+    const axisFrom = getCappedFrom(requestedFrom, to);
+    const isCapped = requestedFrom < axisFrom;
+
     const schedules = await prisma.hangmanDailySchedule.findMany({
-      where: from ? { date: { gte: from, lte: to } } : { date: { lte: to } },
+      where: { date: { gte: axisFrom, lte: to } },
       orderBy: { date: "asc" },
       select: { date: true },
     });
@@ -196,20 +290,34 @@ export async function GET(req: Request) {
     const axisDates = schedules.map((schedule) => toDateKey(schedule.date));
     const availableDays = axisDates.length;
 
-    const meData = await collectForProfile(me, axisDates, from, to);
+    const meData = await collectForProfile(me, axisDates, axisFrom, to);
 
     const followData = await Promise.all(
-      filteredFollows.map((f) => collectForProfile(f.following, axisDates, from, to))
+      filteredFollows.map((f) => collectForProfile(f.following, axisDates, axisFrom, to))
     );
+
+    const [meLifetimeSummary, ...followLifetimeSummaries] = await Promise.all([
+      collectLifetimeSummaryForProfile(me, to),
+      ...filteredFollows.map((f) => collectLifetimeSummaryForProfile(f.following, to)),
+    ]);
+
+    const meOut = { ...meData, summaryWindow: meData.summary, summary: meLifetimeSummary };
+    const followsOut = followData.map((entry, idx) => ({
+      ...entry,
+      summaryWindow: entry.summary,
+      summary: followLifetimeSummaries[idx] ?? entry.summary,
+    }));
 
     return Response.json({
       range,
-      from: from ? from.toISOString().slice(0, 10) : null,
+      from: axisFrom.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),
       availableDays,
       axisDates,
-      me: meData,
-      follows: followData,
+      maxLookbackDays: MAX_LOOKBACK_DAYS,
+      isCapped,
+      me: meOut,
+      follows: followsOut,
     });
   } catch (e: any) {
     return Response.json(

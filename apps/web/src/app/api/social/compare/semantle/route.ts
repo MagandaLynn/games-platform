@@ -2,10 +2,16 @@ import { prisma } from "@playseed/db";
 import { getBlockedProfileIds, getBlockingProfileIds, getDateRange, parseRange, resolveOrCreateProfile } from "../../_shared";
 
 export const runtime = "nodejs";
+const MAX_LOOKBACK_DAYS = 365;
 
 type DailyPoint = {
   date: string;
   importedOn?: string | null;
+  semantleRawText?: string | null;
+  semantlePuzzleNumber?: number | null;
+  semantleTopGuessNumber?: number | null;
+  semantleTopScore?: number | null;
+  semantleHintsUsed?: number | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -28,8 +34,10 @@ type RawPlay = {
   puzzleNumber: number;
   solved: boolean;
   guessCount: number | null;
+  topGuessNumber: number | null;
   topScore: number | null;
   hintsUsed: number | null;
+  rawText: string;
   importedAt: Date;
   updatedAt: Date;
 };
@@ -42,6 +50,11 @@ function addDaysUTC(base: Date, days: number) {
   const d = new Date(base);
   d.setUTCDate(d.getUTCDate() + days);
   return d;
+}
+
+function getCappedFrom(from: Date, to: Date) {
+  const minFrom = addDaysUTC(to, -(MAX_LOOKBACK_DAYS - 1));
+  return from < minFrom ? minFrom : from;
 }
 
 function buildAxisDates(from: Date, to: Date) {
@@ -86,8 +99,10 @@ async function queryPlays(profile: ProfileRef, from: Date, to: Date) {
           "puzzleNumber",
           "solved",
           "guessCount",
+          "topGuessNumber",
           "topScore",
           "hintsUsed",
+          "rawText",
           "importedAt",
           "updatedAt"
         FROM "SemantleDailyPlay"
@@ -106,8 +121,10 @@ async function queryPlays(profile: ProfileRef, from: Date, to: Date) {
         "puzzleNumber",
         "solved",
         "guessCount",
+        "topGuessNumber",
         "topScore",
         "hintsUsed",
+        "rawText",
         "importedAt",
         "updatedAt"
       FROM "SemantleDailyPlay"
@@ -186,6 +203,11 @@ async function collectForProfile(profile: ProfileRef, axisDates: string[], from:
     return {
       date,
       importedOn: play ? toDateKey(play.importedAt) : null,
+      semantleRawText: play?.rawText ?? null,
+      semantlePuzzleNumber: play?.puzzleNumber ?? null,
+      semantleTopGuessNumber: play?.topGuessNumber ?? null,
+      semantleTopScore: play?.topScore ?? null,
+      semantleHintsUsed: play?.hintsUsed ?? null,
       attempted,
       completed,
       won,
@@ -227,6 +249,67 @@ async function collectForProfile(profile: ProfileRef, axisDates: string[], from:
   };
 }
 
+async function collectLifetimeSummaryForProfile(profile: ProfileRef, to: Date) {
+  const plays = await queryPlays(profile, new Date(0), to);
+  const bestPlayByPuzzle = new Map<string, RawPlay>();
+
+  for (const play of plays) {
+    const puzzleKey = String(play.puzzleNumber);
+    bestPlayByPuzzle.set(puzzleKey, chooseBetterPlay(bestPlayByPuzzle.get(puzzleKey), play));
+  }
+
+  const daily: DailyPoint[] = Array.from(bestPlayByPuzzle.values()).map((play) => {
+    const attempted = true;
+    const completed = true;
+    const won = Boolean(play.solved);
+    const lost = !play.solved;
+    const guessedCount = play.guessCount ?? 0;
+    const hintUsed = (play.hintsUsed ?? 0) > 0;
+    const perfect = Boolean(play.solved && play.guessCount === 1);
+
+    return {
+      date: String(play.puzzleNumber),
+      importedOn: toDateKey(play.importedAt),
+      semantleRawText: play.rawText,
+      semantlePuzzleNumber: play.puzzleNumber,
+      semantleTopGuessNumber: play.topGuessNumber,
+      semantleTopScore: play.topScore,
+      semantleHintsUsed: play.hintsUsed,
+      attempted,
+      completed,
+      won,
+      lost,
+      wrongGuesses: null,
+      guessedCount,
+      hintUsed,
+      perfect,
+    };
+  });
+
+  const attemptedDays = daily.filter((d) => d.attempted).length;
+  const totalCompleted = daily.filter((d) => d.completed).length;
+  const attemptedNotCompletedDays = daily.filter((d) => d.attempted && !d.completed).length;
+  const totalWon = daily.filter((d) => d.won).length;
+  const totalLost = daily.filter((d) => d.lost).length;
+  const perfectCount = daily.filter((d) => d.perfect).length;
+  const totalGuesses = daily.reduce((sum, d) => sum + (d.completed ? d.guessedCount : 0), 0);
+  const hintUsedCount = daily.filter((d) => d.completed && d.hintUsed).length;
+
+  return {
+    totalPlayed: attemptedDays,
+    totalCompleted,
+    attemptedNotCompletedDays,
+    totalWon,
+    totalLost,
+    perfectCount,
+    avgWrongGuesses: 0,
+    avgGuesses: totalCompleted ? Number((totalGuesses / totalCompleted).toFixed(2)) : 0,
+    winRate: totalCompleted ? Number((totalWon / totalCompleted).toFixed(2)) : 0,
+    hintUsageRate: totalCompleted ? Number((hintUsedCount / totalCompleted).toFixed(2)) : 0,
+    perfectRate: totalCompleted ? Number((perfectCount / totalCompleted).toFixed(2)) : 0,
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -252,11 +335,14 @@ export async function GET(req: Request) {
     });
     const filteredFollows = follows.filter((f) => !blockedIds.has(f.followingProfileId));
 
-    const axisFrom = from ?? (() => {
+    const requestedFrom = from ?? (() => {
       const fallback = new Date(to);
       fallback.setUTCDate(fallback.getUTCDate() - 29);
       return fallback;
     })();
+
+    const axisFrom = getCappedFrom(requestedFrom, to);
+    const isCapped = requestedFrom < axisFrom;
 
     if (!from) {
       const candidates = await Promise.all([
@@ -273,9 +359,11 @@ export async function GET(req: Request) {
       }
     }
 
+    const boundedAxisFrom = getCappedFrom(axisFrom, to);
+
     const [mePlays, ...followPlaySets] = await Promise.all([
-      queryPlays(me, axisFrom, to),
-      ...filteredFollows.map((f) => queryPlays(f.following, axisFrom, to)),
+      queryPlays(me, boundedAxisFrom, to),
+      ...filteredFollows.map((f) => queryPlays(f.following, boundedAxisFrom, to)),
     ]);
 
     const axisDates = Array.from(
@@ -288,19 +376,33 @@ export async function GET(req: Request) {
     ).sort((a, b) => Number(a) - Number(b));
     const availableDays = axisDates.length;
 
-    const meData = await collectForProfile(me, axisDates, axisFrom, to);
+    const meData = await collectForProfile(me, axisDates, boundedAxisFrom, to);
     const followData = await Promise.all(
-      filteredFollows.map((f) => collectForProfile(f.following, axisDates, axisFrom, to))
+      filteredFollows.map((f) => collectForProfile(f.following, axisDates, boundedAxisFrom, to))
     );
+
+    const [meLifetimeSummary, ...followLifetimeSummaries] = await Promise.all([
+      collectLifetimeSummaryForProfile(me, to),
+      ...filteredFollows.map((f) => collectLifetimeSummaryForProfile(f.following, to)),
+    ]);
+
+    const meOut = { ...meData, summaryWindow: meData.summary, summary: meLifetimeSummary };
+    const followsOut = followData.map((entry, idx) => ({
+      ...entry,
+      summaryWindow: entry.summary,
+      summary: followLifetimeSummaries[idx] ?? entry.summary,
+    }));
 
     return Response.json({
       range,
-      from: axisFrom.toISOString().slice(0, 10),
+      from: boundedAxisFrom.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),
       availableDays,
       axisDates,
-      me: meData,
-      follows: followData,
+      maxLookbackDays: MAX_LOOKBACK_DAYS,
+      isCapped: isCapped || boundedAxisFrom > axisFrom,
+      me: meOut,
+      follows: followsOut,
     });
   } catch (e: any) {
     return Response.json(

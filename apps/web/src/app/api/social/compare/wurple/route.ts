@@ -2,6 +2,7 @@ import { prisma } from "@playseed/db";
 import { getBlockedProfileIds, getBlockingProfileIds, getDateRange, parseRange, resolveOrCreateProfile } from "../../_shared";
 
 export const runtime = "nodejs";
+const MAX_LOOKBACK_DAYS = 365;
 
 type WurpleMode = "easy" | "challenge";
 
@@ -44,6 +45,11 @@ function addDaysUTC(base: Date, days: number) {
   const d = new Date(base);
   d.setUTCDate(d.getUTCDate() + days);
   return d;
+}
+
+function getCappedFrom(from: Date, to: Date) {
+  const minFrom = addDaysUTC(to, -(MAX_LOOKBACK_DAYS - 1));
+  return from < minFrom ? minFrom : from;
 }
 
 function buildAxisDates(from: Date, to: Date) {
@@ -163,6 +169,71 @@ async function collectForProfile(
   };
 }
 
+async function collectLifetimeSummaryForProfile(profile: ProfileRef, to: Date, mode: WurpleMode) {
+  const plays = (await prisma.wurpleDailyPlay.findMany({
+    where: {
+      mode,
+      date: { lte: to },
+      OR: [{ sessionId: profile.sessionId }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
+    },
+    select: {
+      seed: true,
+      status: true,
+      guessCount: true,
+      updatedAt: true,
+    },
+    orderBy: [{ seed: "asc" }, { updatedAt: "desc" }],
+  })) as RawPlay[];
+
+  const bestPlayByDay = new Map<string, RawPlay>();
+  for (const p of plays) {
+    bestPlayByDay.set(p.seed, chooseBetterPlay(bestPlayByDay.get(p.seed), p));
+  }
+
+  const daily: DailyPoint[] = Array.from(bestPlayByDay.values()).map((play) => {
+    const attempted = wasAttempted(play);
+    const completed = isCompleted(play.status);
+    const won = play.status === "won";
+    const lost = play.status === "lost";
+    const guessedCount = attempted ? play.guessCount : 0;
+    const perfect = Boolean(won && guessedCount === 1);
+
+    return {
+      date: play.seed,
+      attempted,
+      completed,
+      won,
+      lost,
+      wrongGuesses: null,
+      guessedCount,
+      hintUsed: false,
+      perfect,
+    };
+  });
+
+  const attemptedDays = daily.filter((d) => d.attempted).length;
+  const totalCompleted = daily.filter((d) => d.completed).length;
+  const attemptedNotCompletedDays = daily.filter((d) => d.attempted && !d.completed).length;
+  const totalWon = daily.filter((d) => d.won).length;
+  const totalLost = daily.filter((d) => d.lost).length;
+  const perfectCount = daily.filter((d) => d.perfect).length;
+  const totalGuesses = daily.reduce((sum, d) => sum + (d.completed ? d.guessedCount : 0), 0);
+
+  return {
+    totalPlayed: attemptedDays,
+    totalCompleted,
+    attemptedNotCompletedDays,
+    totalWon,
+    totalLost,
+    perfectCount,
+    avgWrongGuesses: 0,
+    avgGuesses: totalCompleted ? Number((totalGuesses / totalCompleted).toFixed(2)) : 0,
+    winRate: totalCompleted ? Number((totalWon / totalCompleted).toFixed(2)) : 0,
+    hintUsageRate: 0,
+    perfectRate: totalCompleted ? Number((perfectCount / totalCompleted).toFixed(2)) : 0,
+  };
+}
+
 async function findEarliestDateForProfile(profile: ProfileRef, mode: WurpleMode, to: Date) {
   const first = await prisma.wurpleDailyPlay.findFirst({
     where: {
@@ -209,11 +280,14 @@ export async function GET(req: Request) {
 
     const filteredFollows = follows.filter((f) => !blockedIds.has(f.followingProfileId));
 
-    const axisFrom = from ?? (() => {
+    const requestedFrom = from ?? (() => {
       const fallback = new Date(to);
       fallback.setUTCDate(fallback.getUTCDate() - 29);
       return fallback;
     })();
+
+    const axisFrom = getCappedFrom(requestedFrom, to);
+    const isCapped = requestedFrom < axisFrom;
 
     if (!from) {
       const candidates = await Promise.all([
@@ -230,23 +304,39 @@ export async function GET(req: Request) {
       }
     }
 
-    const axisDates = buildAxisDates(axisFrom, to);
+    const boundedAxisFrom = getCappedFrom(axisFrom, to);
+
+    const axisDates = buildAxisDates(boundedAxisFrom, to);
     const availableDays = axisDates.length;
 
-    const meData = await collectForProfile(me, axisDates, axisFrom, to, mode);
+    const meData = await collectForProfile(me, axisDates, boundedAxisFrom, to, mode);
 
     const followData = await Promise.all(
-      filteredFollows.map((f) => collectForProfile(f.following, axisDates, axisFrom, to, mode))
+      filteredFollows.map((f) => collectForProfile(f.following, axisDates, boundedAxisFrom, to, mode))
     );
+
+    const [meLifetimeSummary, ...followLifetimeSummaries] = await Promise.all([
+      collectLifetimeSummaryForProfile(me, to, mode),
+      ...filteredFollows.map((f) => collectLifetimeSummaryForProfile(f.following, to, mode)),
+    ]);
+
+    const meOut = { ...meData, summaryWindow: meData.summary, summary: meLifetimeSummary };
+    const followsOut = followData.map((entry, idx) => ({
+      ...entry,
+      summaryWindow: entry.summary,
+      summary: followLifetimeSummaries[idx] ?? entry.summary,
+    }));
 
     return Response.json({
       range,
-      from: axisFrom.toISOString().slice(0, 10),
+      from: boundedAxisFrom.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),
       availableDays,
       axisDates,
-      me: meData,
-      follows: followData,
+      maxLookbackDays: MAX_LOOKBACK_DAYS,
+      isCapped: isCapped || boundedAxisFrom > axisFrom,
+      me: meOut,
+      follows: followsOut,
     });
   } catch (e: any) {
     return Response.json(
