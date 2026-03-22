@@ -1193,7 +1193,7 @@ export default function SocialPage() {
 
       await loadAll(range);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const hangmanPlayers = useMemo(() => buildPlayers(hangmanCompare, "wrongGuesses").slice(0, MAX_CHART_PLAYERS), [hangmanCompare]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense, useCallback, useEffect } from "react";
+import { useState, Suspense, useCallback } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import GameBar from "../appComponents/GameBar";
 import RulesModal from "./components/RulesModal";
@@ -25,25 +25,21 @@ function WurpleLayoutContent({ children }: { children: React.ReactNode }) {
         setStats(payload);
     }, []);
 
-    useEffect(() => {
-        if (!statsOpen) return;
-        loadStats().catch(() => {
-            // keep modal usable if endpoint temporarily fails
-        });
-    }, [statsOpen, loadStats]);
-
     return (
         <div className="flex flex-col wurple-layout">
             <GameBar
                 backHref="/"
                 context={{ title: "Wurple", subtitle, mode }}
                 onOpenRules={() => setRulesOpen(true)}
-                onOpenStats={() => {
+                onOpenStats={async () => {
                     setStatsMode(mode === "challenge" ? "challenge" : "easy");
+                    await loadStats().catch(() => {
+                        // keep modal usable if endpoint temporarily fails
+                    });
                     setStatsOpen(true);
                 }}
             />
-            <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+            {rulesOpen && <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />}
             {stats && (
                 <StatsModal
                     open={statsOpen}

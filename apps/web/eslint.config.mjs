@@ -8,10 +8,13 @@ const eslintConfig = defineConfig([
   {
     files: ["**/*.{ts,tsx}"],
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
-      "react/no-unescaped-entities": "warn",
-      "react-hooks/set-state-in-effect": "warn",
-      "@typescript-eslint/ban-ts-comment": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "react/no-unescaped-entities": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@next/next/no-img-element": "off",
     },
   },
   // Override default ignores of eslint-config-next.

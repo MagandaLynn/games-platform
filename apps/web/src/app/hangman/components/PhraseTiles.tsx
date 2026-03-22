@@ -32,7 +32,7 @@ export function PhraseTiles({
       setAnimIdx(null);
       prevMaskedRef.current = masked;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [masked.length]);
 
   React.useEffect(() => {
@@ -83,7 +83,7 @@ export function PhraseTiles({
         timerRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [masked, revealDelayMs]);
 
   // Render: word-aware wrapping (no mid-word breaks)

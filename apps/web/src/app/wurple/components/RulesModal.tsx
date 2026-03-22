@@ -17,11 +17,6 @@ export default function RulesModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setStep(0);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -197,7 +192,7 @@ export default function RulesModal({ open, onClose }: Props) {
                 </div>
 
                 <p className="mt-1 text-xs text-text-muted">
-                    You don't need to be a color expert to play Wurple. Just use the feedback tiles to guide your guesses!
+                    You don&apos;t need to be a color expert to play Wurple. Just use the feedback tiles to guide your guesses!
                 </p>
               </div>
             </div>

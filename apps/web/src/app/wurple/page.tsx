@@ -28,45 +28,36 @@ export default async function Page({ searchParams }: Props) {
   const host = h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "https";
 
-
   const url = new URL("/api/wurple/daily", `${proto}://${host}`);
   url.searchParams.set("seed", seed);
   url.searchParams.set("mode", mode);
 
-const res = await fetch(url.toString(), {
-  cache: "no-store",
-  headers: Object.fromEntries(h.entries()),
-});
-if (!res.ok) {
-  const text = await res.text();
-  return (
-    <main style={{ padding: 24 }}>
-
-      
-      
-      <p>Couldn't load today's puzzle.</p>
-      <pre style={{ whiteSpace: "pre-wrap" }}>
-        {`Status: ${res.status}\n${text.slice(0, 300)}`}
-      </pre>
-      <Link href="/wurple/archive" className="underline">
-        Play Archived Puzzles
-      </Link>
-    </main>
-  );
-}
-
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: Object.fromEntries(h.entries()),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    return (
+      <main style={{ padding: 24 }}>
+        <p>Couldn&apos;t load today&apos;s puzzle.</p>
+        <pre style={{ whiteSpace: "pre-wrap" }}>
+          {`Status: ${res.status}\n${text.slice(0, 300)}`}
+        </pre>
+        <Link href="/wurple/archive" className="underline">
+          Play Archived Puzzles
+        </Link>
+      </main>
+    );
+  }
 
   const initialDaily = await res.json();
-  const d1=new Date(initialDaily.seed).toDateString();
-  const d2=new Date(todayNY()).toDateString();
-  console.log("d1:", d1, "d2:", d2);
-  const isToday = d1 === d2;
-  console.log("WurpleClient initialDaily", initialDaily);
+
   return (
     <main>
 
-      <WurpleClient initialDaily={initialDaily}  />
-          <Link
+      <WurpleClient initialDaily={initialDaily} />
+      <Link
         href="/wurple/archive"
         className="underline opacity-80 hover:opacity-100 flex justify-center mt-6 block"
       >

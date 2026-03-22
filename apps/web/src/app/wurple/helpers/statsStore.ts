@@ -46,14 +46,15 @@ export function loadStats(): WurpleStats {
     const parsed = JSON.parse(raw) as Partial<WurpleStats>;
 
     const base = emptyStats();
-    const sbm = parsed.statsByMode ?? ({} as any);
+    const sbmEasy = parsed.statsByMode?.easy ?? {};
+    const sbmChallenge = parsed.statsByMode?.challenge ?? {};
 
     return {
       ...base,
       ...parsed,
       statsByMode: {
-        easy: { ...base.statsByMode.easy, ...(sbm.easy ?? {}) },
-        challenge: { ...base.statsByMode.challenge, ...(sbm.challenge ?? {}) },
+        easy: { ...base.statsByMode.easy, ...sbmEasy },
+        challenge: { ...base.statsByMode.challenge, ...sbmChallenge },
       },
     };
   } catch {

@@ -131,7 +131,7 @@ export default function WurpleClient({ initialDaily}: { initialDaily: DailyRespo
       console.error("Error loading daily:", err);
       setError(`Error loading daily: ${err.message}`);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [seed, mode]);
 
 
