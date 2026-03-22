@@ -8,7 +8,7 @@ import { upsertHangmanRecord } from "../helpers/hangmanStats";
 import { buildShareText } from "../helpers/sharing";
 import Toast from "@/app/appComponents/Toast";
 import { useToast } from "@/app/hooks/useToast";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 type Play = {
   masked: string;
@@ -32,6 +32,37 @@ type Play = {
   mode?: "daily" | "custom" | string;
 };
 
+type StateResponse = { play: Play; date?: string };
+type GuessResponse = { play: Play; date?: string };
+
+type ParsedPlayResponse = {
+  play: Play;
+  date?: string;
+};
+
+function isPlay(value: unknown): value is Play {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+
+  return (
+    typeof v.masked === "string" &&
+    Array.isArray(v.guessed) &&
+    typeof v.wrongGuesses === "number" &&
+    typeof v.remaining === "number" &&
+    typeof v.status === "string"
+  );
+}
+
+function parsePlayResponse(text: string): ParsedPlayResponse | null {
+  try {
+    const parsed = JSON.parse(text) as StateResponse | GuessResponse;
+    if (isPlay(parsed?.play)) return { play: parsed.play, date: parsed.date };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function DailyHangmanClient({
   instanceId,
   category,
@@ -46,6 +77,8 @@ export default function DailyHangmanClient({
 
   const [showHint, setShowHint] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dailyDate, setDailyDate] = useState<string | null>(null);
+  const router = useRouter();
 
   const { message } = useToast();
 
@@ -70,8 +103,14 @@ export default function DailyHangmanClient({
       return;
     }
 
-    const data = JSON.parse(text);
-    setPlay(data.play as Play);
+    const parsed = parsePlayResponse(text);
+    if (!parsed) {
+      setError("state failed: invalid response format");
+      return;
+    }
+
+    setPlay(parsed.play);
+    setDailyDate(parsed.date ?? null);
   }, [instanceId]);
 
   // ✅ keep showHint synced after play loads / updates
@@ -102,8 +141,13 @@ export default function DailyHangmanClient({
         return;
       }
 
-      const data = JSON.parse(text);
-      setPlay(data.play as Play);
+      const parsed = parsePlayResponse(text);
+      if (!parsed) {
+        setError("guess failed: invalid response format");
+        return;
+      }
+
+      setPlay(parsed.play);
     },
     [instanceId, play]
   );
@@ -235,7 +279,8 @@ export default function DailyHangmanClient({
                 hintUsed: !!play.hintUsed,
                 origin: window.location.origin,
                 instanceId,
-                mode: (play.mode as any) ?? "daily",
+                mode: play.mode === "custom" ? "custom" : "daily",
+                date: play.mode === "custom" ? null : dailyDate,
               });
 
               await navigator.clipboard.writeText(text);
@@ -260,7 +305,7 @@ export default function DailyHangmanClient({
           <button
             type="button"
             onClick={async () => {
-              redirect(`/hangman/create`);
+              router.push("/hangman/create");
               }}
             className="
               inline-flex items-center justify-center
