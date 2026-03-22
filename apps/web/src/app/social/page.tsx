@@ -55,6 +55,7 @@ type CompareResponse = {
 
 type GameKind = "hangman" | "wurple";
 type ChartMetric = "wrongGuesses" | "guessedCount";
+type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge";
 
 type ChartDay = {
   date: string;
@@ -120,6 +121,33 @@ function formatShortDate(date: string) {
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function toDateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function dayLabel(day: CompareDay | null, kind: GameKind) {
+  if (!day) return "No data";
+  if (!day.attempted) return "No attempt";
+  if (!day.completed) return `In progress (${day.guessedCount})`;
+
+  if (kind === "hangman") {
+    if (day.won) {
+      return day.perfect ? "Won · perfect" : `Won · ${day.wrongGuesses ?? 0} wrong`;
+    }
+    return `Lost · ${day.wrongGuesses ?? 0} wrong`;
+  }
+
+  if (day.won) return `Won in ${day.guessedCount}`;
+  return `Lost in ${day.guessedCount}`;
+}
+
+function findFollowDay(compare: CompareResponse | null, profileId: string, date: string) {
+  if (!compare) return null;
+  const follow = compare.follows.find((f) => f.profileId === profileId);
+  if (!follow) return null;
+  return follow.daily.find((d) => d.date === date) ?? null;
 }
 
 function buildLinePath(points: Array<{ x: number; y: number } | null>) {
@@ -439,6 +467,10 @@ function GameSection({
 export default function SocialPage() {
   const [followUrl, setFollowUrl] = useState("");
   const [followInput, setFollowInput] = useState("");
+  const [profileHandle, setProfileHandle] = useState<string>("");
+  const [profileDisplayName, setProfileDisplayName] = useState<string>("");
+  const [profileInput, setProfileInput] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hangmanCompare, setHangmanCompare] = useState<CompareResponse | null>(null);
@@ -447,6 +479,7 @@ export default function SocialPage() {
   const [wurpleError, setWurpleError] = useState<string | null>(null);
   const [follows, setFollows] = useState<FollowItem[]>([]);
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
+  const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
 
   async function importLocalWurpleHistory() {
@@ -554,6 +587,18 @@ export default function SocialPage() {
         return;
       }
 
+      const meData = await meRes.json();
+      const meProfile = meData?.profile ?? {};
+      const nextHandle = typeof meProfile.handle === "string" ? meProfile.handle : "";
+      const nextDisplayName = typeof meProfile.displayName === "string" ? meProfile.displayName : "";
+
+      setProfileHandle(nextHandle);
+      setProfileDisplayName(nextDisplayName);
+      setProfileInput((current) => {
+        if (current.trim().length > 0 && current !== profileDisplayName) return current;
+        return nextDisplayName;
+      });
+
       await importLocalWurpleHistory();
 
       const [linkRes, followsRes, hangmanRes, wurpleEasyRes, wurpleChallengeRes] = await Promise.all([
@@ -651,6 +696,65 @@ export default function SocialPage() {
   const wurpleEasyPlayers = useMemo(() => buildPlayers(wurpleEasyCompare, "guessedCount"), [wurpleEasyCompare]);
   const wurpleChallengePlayers = useMemo(() => buildPlayers(wurpleChallengeCompare, "guessedCount"), [wurpleChallengeCompare]);
 
+  const todayKey = useMemo(() => {
+    const key = hangmanCompare?.to ?? wurpleEasyCompare?.to ?? wurpleChallengeCompare?.to;
+    if (typeof key === "string" && key.length > 0) return key;
+    return toDateKey(new Date());
+  }, [hangmanCompare?.to, wurpleEasyCompare?.to, wurpleChallengeCompare?.to]);
+
+  const followedTodayRows = useMemo(() => {
+    return follows.map((follow) => ({
+      follow,
+      hangmanDay: findFollowDay(hangmanCompare, follow.profileId, todayKey),
+      wurpleEasyDay: findFollowDay(wurpleEasyCompare, follow.profileId, todayKey),
+      wurpleChallengeDay: findFollowDay(wurpleChallengeCompare, follow.profileId, todayKey),
+    }));
+  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, todayKey]);
+
+  const activeChart = useMemo(() => {
+    if (activeChartTab === "hangman") {
+      return {
+        title: "Hangman",
+        subtitle: "Daily wrong guesses per player. Lower is better. A white dot marks a perfect game.",
+        compare: hangmanCompare,
+        players: hangmanPlayers,
+        variant: "hangman" as GameKind,
+        emptyMessage: "No daily Hangman schedule exists yet for this range.",
+        highlightLegend: "Perfect game",
+      };
+    }
+
+    if (activeChartTab === "wurpleEasy") {
+      return {
+        title: "Wurple · Easy",
+        subtitle: "Daily guesses used in easy mode. Lower is better.",
+        compare: wurpleEasyCompare,
+        players: wurpleEasyPlayers,
+        variant: "wurple" as GameKind,
+        emptyMessage: "No Wurple easy schedule exists yet for this range.",
+        highlightLegend: undefined,
+      };
+    }
+
+    return {
+      title: "Wurple · Challenge",
+      subtitle: "Daily guesses used in challenge mode. Lower is better.",
+      compare: wurpleChallengeCompare,
+      players: wurpleChallengePlayers,
+      variant: "wurple" as GameKind,
+      emptyMessage: "No Wurple challenge schedule exists yet for this range.",
+      highlightLegend: undefined,
+    };
+  }, [
+    activeChartTab,
+    hangmanCompare,
+    hangmanPlayers,
+    wurpleEasyCompare,
+    wurpleEasyPlayers,
+    wurpleChallengeCompare,
+    wurpleChallengePlayers,
+  ]);
+
   async function copyFollowLink() {
     if (!followUrl) return;
     await navigator.clipboard.writeText(`Follow my game results: ${followUrl}`);
@@ -696,13 +800,45 @@ export default function SocialPage() {
     }
   }
 
+  async function saveProfileName(e: React.FormEvent) {
+    e.preventDefault();
+    const next = profileInput.trim();
+
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/social/me", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: next }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(data.error ?? "Could not save profile name");
+        return;
+      }
+
+      const savedName = typeof data?.profile?.displayName === "string" ? data.profile.displayName : "";
+      const savedHandle = typeof data?.profile?.handle === "string" ? data.profile.handle : profileHandle;
+
+      setProfileDisplayName(savedName);
+      setProfileInput(savedName);
+      setProfileHandle(savedHandle);
+      setStatus(savedName ? "Profile name saved" : "Profile name removed");
+
+      await loadAll(range);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
+      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold">Social Dashboard</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">Social Dashboard</h1>
           <p className="mt-1 text-sm text-text-muted">
-            One page for shared results across games. Hangman tracks wrong guesses; Wurple tracks guesses used for easy and challenge mode.
+            Compare daily performance across games with people you follow.
           </p>
         </div>
 
@@ -726,70 +862,148 @@ export default function SocialPage() {
         </div>
       )}
 
-      <GameSection
-        title="Hangman"
-        subtitle="Daily wrong guesses per player. Lower is better. A white dot marks a perfect game."
-        compare={hangmanCompare}
-        players={hangmanPlayers}
-        variant="hangman"
-        emptyMessage="No daily Hangman schedule exists yet for this range."
-        highlightLegend="Perfect game"
-      />
-
-      <section className="space-y-4">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-          <h2 className="font-semibold">Wurple</h2>
-          <p className="mt-1 text-xs text-text-muted">
-            Two mode dashboard on one page. Each chart shows guesses used per daily puzzle.
-          </p>
-          {wurpleError && <p className="mt-2 text-xs text-amber-300">⚠️ {wurpleError}</p>}
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Profile & share</h2>
+          <span className="text-xs text-text-muted">@{profileHandle || "player"}</span>
         </div>
 
-        <GameSection
-          title="Wurple · Easy"
-          subtitle="Daily guesses used in easy mode. Lower is better."
-          compare={wurpleEasyCompare}
-          players={wurpleEasyPlayers}
-          variant="wurple"
-          emptyMessage="No Wurple easy schedule exists yet for this range."
-        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2.5">
+            <div className="text-sm font-semibold">Display name</div>
+            <div className="text-xs text-text-muted">
+              This name appears in social compare views.
+            </div>
+            <form onSubmit={saveProfileName} className="flex gap-2">
+              <input
+                value={profileInput}
+                onChange={(e) => setProfileInput(e.target.value)}
+                placeholder="Display name"
+                className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+                maxLength={40}
+              />
+              <button
+                type="submit"
+                disabled={isSavingProfile}
+                className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSavingProfile ? "Saving..." : "Save"}
+              </button>
+            </form>
+            {profileDisplayName && (
+              <div className="text-xs text-text-muted">
+                Current name: <span className="font-semibold text-white">{profileDisplayName}</span>
+              </div>
+            )}
+          </div>
 
-        <GameSection
-          title="Wurple · Challenge"
-          subtitle="Daily guesses used in challenge mode. Lower is better."
-          compare={wurpleChallengeCompare}
-          players={wurpleChallengePlayers}
-          variant="wurple"
-          emptyMessage="No Wurple challenge schedule exists yet for this range."
-        />
+          <div className="space-y-2.5">
+            <div className="text-sm font-semibold">Share follow link</div>
+            <div className="text-xs text-text-muted">
+              Anyone with this link can follow your profile.
+            </div>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={followUrl}
+                className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={copyFollowLink}
+                disabled={!followUrl}
+                className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        {!wurpleEasyCompare && !wurpleChallengeCompare && !wurpleError && (
-          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center text-sm text-text-muted">
-            Wurple stats have not been published for this range yet.
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Today by followed players</h2>
+          <div className="text-xs text-text-muted">{todayKey}</div>
+        </div>
+
+        {followedTodayRows.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-6 text-center text-sm text-text-muted">
+            Follow players to see their daily stats snapshot.
+          </div>
+        ) : (
+          <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+            {followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay }) => (
+              <div key={follow.profileId} className="rounded-lg border border-white/10 bg-black/10 p-3">
+                <div className="text-sm font-semibold text-white leading-tight">{follow.displayName ?? `@${follow.handle}`}</div>
+                <div className="mt-1 text-[11px] text-text-muted">@{follow.handle}</div>
+                <div className="mt-2 space-y-1 text-xs text-text-muted">
+                  <div>
+                    <span className="font-semibold text-white">Hangman:</span> {dayLabel(hangmanDay, "hangman")}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white">Wurple Easy:</span> {dayLabel(wurpleEasyDay, "wurple")}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white">Wurple Challenge:</span> {dayLabel(wurpleChallengeDay, "wurple")}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-        <div className="text-sm font-semibold">Follow me link</div>
-        <div className="flex gap-2">
-          <input
-            readOnly
-            value={followUrl}
-            className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-          />
-          <button
-            type="button"
-            onClick={copyFollowLink}
-            disabled={!followUrl}
-            className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Copy
-          </button>
+      <section className="space-y-3">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">History charts</h2>
+            <span className="text-xs text-text-muted">{range.toUpperCase()}</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "hangman", label: "Hangman" },
+              { id: "wurpleEasy", label: "Wurple Easy" },
+              { id: "wurpleChallenge", label: "Wurple Challenge" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveChartTab(tab.id as ChartTab)}
+                className={[
+                  "rounded-lg px-3 py-2 text-sm font-semibold transition",
+                  activeChartTab === tab.id ? "bg-link text-white" : "bg-bg-soft text-text-muted hover:text-text",
+                ].join(" ")}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {wurpleError && activeChartTab !== "hangman" && (
+            <p className="mt-3 text-xs text-amber-300">⚠️ {wurpleError}</p>
+          )}
         </div>
+
+        <GameSection
+          title={activeChart.title}
+          subtitle={activeChart.subtitle}
+          compare={activeChart.compare}
+          players={activeChart.players}
+          variant={activeChart.variant}
+          emptyMessage={activeChart.emptyMessage}
+          highlightLegend={activeChart.highlightLegend}
+        />
+
+        {!activeChart.compare && (
+          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center text-sm text-text-muted">
+            No stats are available for this tab yet.
+          </div>
+        )}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
         <div className="text-sm font-semibold">Follow someone</div>
         <form onSubmit={followByHandleOrToken} className="flex gap-2">
           <input
@@ -804,7 +1018,7 @@ export default function SocialPage() {
         </form>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Following ({follows.length})</h2>
@@ -817,7 +1031,7 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {follows.length === 0 && <p className="text-sm text-text-muted">You are not following anyone yet.</p>}
           {follows.map((f) => (
-            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2">
+            <div key={f.profileId} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-1.5">
               <div>
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
