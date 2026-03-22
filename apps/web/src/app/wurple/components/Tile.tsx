@@ -12,7 +12,8 @@ export default function Tile({
   delayMs: number;
   animate: boolean;
 }) {
-  const size = 44;
+  // Scales down on narrow screens so rows never overflow (min = tiles fill viewport)
+  const size = "min(44px, calc((100vw - 114px) / 6))";
 
   const backBg =
     status === "correct"

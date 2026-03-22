@@ -18,7 +18,7 @@ export function buildShareText({
 }) {
   const hangmanEmoji = (wrong: number, maxWrong: number) => {
     // 0..maxWrong -> 0..6
-    const stages = ["😀", "😐", "😟", "😨", "😰", "😰", "😵"];
+    const stages = ["😀", "😊", "🙂", "😐", "😟", "😰", "😵"];
     const denom = Math.max(1, maxWrong);
     const idx = Math.min(stages.length - 1, Math.floor((wrong / denom) * (stages.length - 1)));
     return stages[idx];

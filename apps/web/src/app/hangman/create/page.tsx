@@ -1,7 +1,6 @@
 // app/hangman/create/page.tsx
 import { redirect } from "next/navigation";
 import { prisma } from "@playseed/db";
-import { utcMidnight } from "@/server/date";
 export const runtime = "nodejs";
 
 function normalizePhrase(raw: string) {
@@ -62,7 +61,7 @@ export default function CreateHangmanPuzzlePage() {
             name="phrase"
             required
             maxLength={80}
-            placeholder="e.g. 50 FIRST DATES 🏝️"
+            placeholder="Write your phrase to guess here (inside jokes encouraged!)"
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-link/40"
           />
           <p className="text-xs text-text-muted">Max 80 chars.</p>
@@ -73,7 +72,7 @@ export default function CreateHangmanPuzzlePage() {
           <input
             name="hint"
             maxLength={120}
-            placeholder="e.g. Rom-com on a beach"
+            placeholder="e.g. It's not what it sounds like"
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-link/40"
           />
         </div>
@@ -83,7 +82,7 @@ export default function CreateHangmanPuzzlePage() {
           <input
             name="category"
             maxLength={40}
-            placeholder="e.g. Movies"
+            placeholder="e.g. Shared Memories"
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-link/40"
           />
         </div>

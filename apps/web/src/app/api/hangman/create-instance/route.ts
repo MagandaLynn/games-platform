@@ -18,23 +18,59 @@ function dayRange(date = utcMidnight()) {
 async function handleDaily(date = utcMidnight()) {
   const { start, end } = dayRange(date);
 
-  const schedule = await prisma.hangmanDailySchedule.findFirst({
-    where: { date: { gte: start, lt: end } },
+  // Debug logging
+  console.log("[handleDaily] Looking for schedule between:", {
+    start: start.toISOString(),
+    end: end.toISOString(),
+    dateParam: date.toISOString(),
+  });
+
+  // Try exact match first, then range
+  let schedule = await prisma.hangmanDailySchedule.findUnique({
+    where: { date: start },
     include: { puzzle: true },
-    orderBy: { date: "asc" },
   });
 
   if (!schedule) {
+    // Fallback to range query
+    schedule = await prisma.hangmanDailySchedule.findFirst({
+      where: { date: { gte: start, lt: end } },
+      include: { puzzle: true },
+      orderBy: { date: "asc" },
+    });
+  }
+
+  console.log("[handleDaily] Schedule found:", schedule ? `Yes (${schedule.puzzle.phrase})` : "No");
+
+  if (!schedule) {
+    // Try to find any nearby schedules for debugging
+    const allSchedules = await prisma.hangmanDailySchedule.findMany({
+      take: 5,
+      orderBy: { date: "asc" },
+      select: { date: true, puzzleId: true },
+    });
+    console.log("[handleDaily] First 5 schedules in DB:", allSchedules.map(s => s.date.toISOString()));
+    
     return Response.json(
-      { error: "No daily puzzle scheduled for this date.", date: start.toISOString() },
+      { 
+        error: "No daily puzzle scheduled for this date.", 
+        date: start.toISOString(),
+        debug: {
+          queriedRange: { start: start.toISOString(), end: end.toISOString() },
+          firstSchedulesInDb: allSchedules.map(s => s.date.toISOString()),
+        }
+      },
       { status: 404 }
     );
   }
 
+  // Use the same date for both lookup and creation to ensure consistency
+  const instanceDate = utcMidnight(date);
+
   const instance = await prisma.hangmanDailyInstance.upsert({
-    where: { date_mode: { date: utcMidnight(schedule.date), mode: "daily" } },
+    where: { date_mode: { date: instanceDate, mode: "daily" } },
     update: { puzzleId: schedule.puzzleId },
-    create: { date: utcMidnight(schedule.date), mode: "daily", puzzleId: schedule.puzzleId },
+    create: { date: instanceDate, mode: "daily", puzzleId: schedule.puzzleId },
     include: { puzzle: true },
   });
 

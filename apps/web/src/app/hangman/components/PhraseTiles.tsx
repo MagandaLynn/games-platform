@@ -89,22 +89,22 @@ export function PhraseTiles({
   // Render: word-aware wrapping (no mid-word breaks)
   const words = displayed.split(" ").filter(Boolean);
 
-  const baseLetter = "text-xl sm:text-2xl font-mono font-semibold";
-  const baseTileW = "w-8 sm:w-10";
-  const letterH = "h-7 sm:h-8";
+  const baseLetter = "text-sm sm:text-xl md:text-2xl font-mono font-semibold";
+  const baseTileW = "w-6 sm:w-8 md:w-10";
+  const letterH = "h-6 sm:h-7 md:h-8";
 
   // Map word+char to global index in `displayed`
   let scan = 0;
 
   return (
-    <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
+    <div className="flex flex-wrap items-end gap-x-2 gap-y-3 sm:gap-x-4 sm:gap-y-4">
       {words.map((word, wIdx) => {
         while (displayed[scan] === " ") scan++;
         const wordStart = scan;
         scan = wordStart + word.length + 1;
 
         return (
-          <div key={wIdx} className="inline-flex items-end gap-2 whitespace-nowrap mr-4">
+          <div key={wIdx} className="inline-flex items-end gap-[3px] sm:gap-2 whitespace-nowrap mr-2 sm:mr-4">
             {Array.from(word).map((ch, i) => {
               const globalIdx = wordStart + i;
               
