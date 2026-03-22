@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const PLAYER_COLORS = ["#60a5fa", "#f97316", "#a78bfa", "#34d399", "#facc15", "#f472b6", "#22d3ee"];
+const MAX_CHART_PLAYERS = PLAYER_COLORS.length;
 const SEMANTLE_BASE_PUZZLE = 1513;
 const SEMANTLE_BASE_DATE_UTC = new Date(Date.UTC(2026, 2, 22));
+const WORDLE_BASE_PUZZLE = 1000;
+const WORDLE_BASE_DATE_UTC = new Date(Date.UTC(2024, 2, 15));
 
 type FollowItem = {
   profileId: string;
@@ -28,6 +31,10 @@ type CompareDay = {
   semantleTopGuessNumber?: number | null;
   semantleTopScore?: number | null;
   semantleHintsUsed?: number | null;
+  wordleRawText?: string | null;
+  wordlePuzzleNumber?: number | null;
+  wordleAttempts?: number | null;
+  wordleMaxGuesses?: number | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -70,9 +77,9 @@ type CompareResponse = {
   follows: CompareEntry[];
 };
 
-type GameKind = "hangman" | "wurple" | "semantle";
+type GameKind = "hangman" | "wurple" | "semantle" | "wordle";
 type ChartMetric = "wrongGuesses" | "guessedCount";
-type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge" | "semantle";
+type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge" | "semantle" | "wordle";
 
 type ChartDay = {
   date: string;
@@ -92,6 +99,10 @@ type ChartDay = {
   semantleTopGuessNumber?: number | null;
   semantleTopScore?: number | null;
   semantleHintsUsed?: number | null;
+  wordleRawText?: string | null;
+  wordlePuzzleNumber?: number | null;
+  wordleAttempts?: number | null;
+  wordleMaxGuesses?: number | null;
 };
 
 type ChartSeries = {
@@ -111,6 +122,7 @@ type TodayRow = {
   wurpleEasyDay: CompareDay | null;
   wurpleChallengeDay: CompareDay | null;
   semantleDay: CompareDay | null;
+  wordleDay: CompareDay | null;
 };
 
 function emptyDay(date: string): CompareDay {
@@ -122,6 +134,10 @@ function emptyDay(date: string): CompareDay {
     semantleTopGuessNumber: null,
     semantleTopScore: null,
     semantleHintsUsed: null,
+    wordleRawText: null,
+    wordlePuzzleNumber: null,
+    wordleAttempts: null,
+    wordleMaxGuesses: null,
     attempted: false,
     completed: false,
     won: false,
@@ -167,6 +183,10 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
         semantleTopGuessNumber: day.semantleTopGuessNumber ?? null,
         semantleTopScore: day.semantleTopScore ?? null,
         semantleHintsUsed: day.semantleHintsUsed ?? null,
+        wordleRawText: day.wordleRawText ?? null,
+        wordlePuzzleNumber: day.wordlePuzzleNumber ?? null,
+        wordleAttempts: day.wordleAttempts ?? null,
+        wordleMaxGuesses: day.wordleMaxGuesses ?? null,
       };
     }),
   }));
@@ -267,7 +287,35 @@ function getSemantleCurrentPuzzleKey(now = new Date()) {
   return String(SEMANTLE_BASE_PUZZLE + diffDays);
 }
 
+function getWordleCurrentPuzzleKey(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+    const value = parts.find((p) => p.type === type)?.value ?? "0";
+    return Number.parseInt(value, 10);
+  };
+
+  const year = getPart("year");
+  const month = getPart("month");
+  const day = getPart("day");
+
+  const wordleDate = new Date(Date.UTC(year, month - 1, day));
+  const diffDays = Math.floor((wordleDate.getTime() - WORDLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+  return String(WORDLE_BASE_PUZZLE + diffDays);
+}
+
 function formatSemantlePuzzleTick(value: string) {
+  const puzzle = Number.parseInt(value, 10);
+  if (!Number.isFinite(puzzle)) return value;
+  return String(puzzle);
+}
+
+function formatWordlePuzzleTick(value: string) {
   const puzzle = Number.parseInt(value, 10);
   if (!Number.isFinite(puzzle)) return value;
   return String(puzzle);
@@ -307,6 +355,21 @@ function formatHangmanDetailText(day: ChartDay) {
     `🔤 Total guesses: ${guesses}`,
     `💡 Hint used: ${hint}`,
     `⭐ Perfect: ${perfect}`,
+  ].join("\n");
+}
+
+function formatWordleDetailText(day: ChartDay) {
+  if (day.wordleRawText) return day.wordleRawText;
+
+  const puzzle = day.wordlePuzzleNumber ?? Number.parseInt(day.date, 10);
+  const maxGuesses = day.wordleMaxGuesses ?? 6;
+  const attempts = day.wordleAttempts;
+  const score = day.completed ? `${attempts ?? day.guessedCount}/${maxGuesses}` : `X/${maxGuesses}`;
+
+  return [
+    `Wordle ${Number.isFinite(puzzle) ? puzzle : day.date} ${score}`,
+    day.completed ? (day.won ? "✅ Solved" : "❌ Missed") : "🕓 In progress",
+    `🔢 Guesses: ${day.guessedCount}`,
   ].join("\n");
 }
 
@@ -362,9 +425,9 @@ function buildLinePath(points: Array<{ x: number; y: number } | null>) {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/10 p-4">
+    <div className="rounded-xl border border-slate-300/70 bg-slate-100/70 p-4 dark:border-white/10 dark:bg-black/10">
       <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
-      <div className="mt-2 text-2xl font-extrabold text-white">{value}</div>
+      <div className="mt-2 text-2xl font-extrabold text-text">{value}</div>
       {hint && <div className="mt-1 text-xs text-text-muted">{hint}</div>}
     </div>
   );
@@ -393,7 +456,7 @@ function MetricLineChart({
 }) {
   if (axisDates.length === 0) {
     return (
-      <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center text-sm text-text-muted">
+      <div className="mt-4 rounded-xl border border-dashed border-slate-300/70 bg-slate-100/70 px-4 py-8 text-center text-sm text-text-muted dark:border-white/10 dark:bg-black/10">
         {emptyMessage}
       </div>
     );
@@ -425,7 +488,7 @@ function MetricLineChart({
         {players.map((player) => (
           <div
             key={player.profileId}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/10 px-3 py-1 text-text-muted"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-slate-100/80 px-3 py-1 text-text-muted dark:border-white/10 dark:bg-black/10"
           >
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: player.color }} />
             <span>{player.label}</span>
@@ -436,13 +499,13 @@ function MetricLineChart({
       {/* Symbol legend */}
       <div className="flex flex-wrap gap-3 text-[11px] text-text-muted">
         <div className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full border border-white/20 bg-white/30" />
+          <span className="h-2.5 w-2.5 rounded-full border border-slate-500/50 bg-slate-500/40 dark:border-white/20 dark:bg-white/30" />
           <span>Completed</span>
         </div>
 
         {highlightLegend && (
           <div className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full border border-white/40 bg-white" />
+            <span className="h-2.5 w-2.5 rounded-full border border-slate-700 bg-slate-700 dark:border-white/40 dark:bg-white" />
             <span>{highlightLegend}</span>
           </div>
         )}
@@ -462,8 +525,8 @@ function MetricLineChart({
             const y = yFor(tick);
             return (
               <g key={tick}>
-                <line x1={margin.left} y1={y} x2={width - margin.right} y2={y} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-                <text x={margin.left - 10} y={y + 4} textAnchor="end" fontSize="11" fill="rgba(255,255,255,0.55)">
+                <line x1={margin.left} y1={y} x2={width - margin.right} y2={y} stroke="var(--color-text-muted)" strokeOpacity="0.25" strokeWidth="1" />
+                <text x={margin.left - 10} y={y + 4} textAnchor="end" fontSize="11" fill="var(--color-text-muted)" fillOpacity="0.9">
                   {tick}
                 </text>
               </g>
@@ -477,10 +540,11 @@ function MetricLineChart({
                 y1={margin.top}
                 x2={xFor(index)}
                 y2={height - margin.bottom}
-                stroke="rgba(255,255,255,0.05)"
+                stroke="var(--color-text-muted)"
+                strokeOpacity="0.2"
                 strokeWidth="1"
               />
-              <text x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="11" fill="rgba(255,255,255,0.55)">
+              <text x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="11" fill="var(--color-text-muted)" fillOpacity="0.9">
                 {(xTickFormatter ?? formatShortDate)(axisDates[index])}
               </text>
             </g>
@@ -491,7 +555,8 @@ function MetricLineChart({
             y1={height - margin.bottom}
             x2={width - margin.right}
             y2={height - margin.bottom}
-            stroke="rgba(255,255,255,0.14)"
+            stroke="var(--color-text)"
+            strokeOpacity="0.35"
             strokeWidth="1"
           />
 
@@ -515,12 +580,12 @@ function MetricLineChart({
                       cx={x}
                       cy={y}
                       r={day.highlight ? 5 : 4}
-                      fill={day.highlight ? "white" : player.color}
+                      fill={day.highlight ? "var(--color-text)" : player.color}
                       stroke={player.color}
                       strokeWidth="2"
-                      className={variant === "semantle" || variant === "hangman" || variant === "wurple" ? "cursor-pointer" : undefined}
+                      className={variant === "semantle" || variant === "hangman" || variant === "wurple" || variant === "wordle" ? "cursor-pointer" : undefined}
                       onClick={
-                        variant === "semantle" || variant === "hangman" || variant === "wurple"
+                        variant === "semantle" || variant === "hangman" || variant === "wurple" || variant === "wordle"
                           ? () => onPointSelect?.({ playerLabel: player.label, day, variant, profileId: player.profileId })
                           : undefined
                       }
@@ -597,15 +662,15 @@ function PlayerBreakdown({ players, variant }: { players: ChartSeries[]; variant
 
   return (
     <div className="mt-6">
-      <h3 className="text-sm font-semibold text-white">Player breakdown</h3>
+      <h3 className="text-sm font-semibold text-text">Player breakdown</h3>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {players.map((player) => (
-          <div key={player.profileId} className="rounded-xl border border-white/10 bg-black/10 p-4">
+          <div key={player.profileId} className="rounded-xl border border-slate-300/70 bg-slate-100/70 p-4 dark:border-white/10 dark:bg-black/10">
             <div className="flex items-center gap-3">
               <span className="h-3 w-3 rounded-full" style={{ backgroundColor: player.color }} />
               <div>
-                <div className="text-sm font-semibold text-white">{player.label}</div>
+                <div className="text-sm font-semibold text-text">{player.label}</div>
                 <div className="text-xs text-text-muted">
                   {player.summary.totalWon} wins · {player.summary.totalLost} losses · {formatPercent(player.summary.winRate)} win rate
                 </div>
@@ -615,33 +680,33 @@ function PlayerBreakdown({ players, variant }: { players: ChartSeries[]; variant
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <dt className="text-text-muted">Played</dt>
-                <dd className="font-semibold text-white">{player.summary.totalPlayed}</dd>
+                <dd className="font-semibold text-text">{player.summary.totalPlayed}</dd>
               </div>
               <div>
                 <dt className="text-text-muted">Completed</dt>
-                <dd className="font-semibold text-white">{player.summary.totalCompleted}</dd>
+                <dd className="font-semibold text-text">{player.summary.totalCompleted}</dd>
               </div>
 
               {variant === "hangman" ? (
                 <>
                   <div>
                     <dt className="text-text-muted">Avg wrong</dt>
-                    <dd className="font-semibold text-white">{player.summary.avgWrongGuesses.toFixed(2)}</dd>
+                    <dd className="font-semibold text-text">{player.summary.avgWrongGuesses.toFixed(2)}</dd>
                   </div>
                   <div>
                     <dt className="text-text-muted">Perfect</dt>
-                    <dd className="font-semibold text-white">{player.summary.perfectCount}</dd>
+                    <dd className="font-semibold text-text">{player.summary.perfectCount}</dd>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
                     <dt className="text-text-muted">Wins</dt>
-                    <dd className="font-semibold text-white">{player.summary.totalWon}</dd>
+                    <dd className="font-semibold text-text">{player.summary.totalWon}</dd>
                   </div>
                   <div>
                     <dt className="text-text-muted">Losses</dt>
-                    <dd className="font-semibold text-white">{player.summary.totalLost}</dd>
+                    <dd className="font-semibold text-text">{player.summary.totalLost}</dd>
                   </div>
                 </>
               )}
@@ -649,17 +714,17 @@ function PlayerBreakdown({ players, variant }: { players: ChartSeries[]; variant
               {variant === "hangman" ? (
                 <div>
                   <dt className="text-text-muted">Win rate</dt>
-                  <dd className="font-semibold text-white">{formatPercent(player.summary.winRate)}</dd>
+                  <dd className="font-semibold text-text">{formatPercent(player.summary.winRate)}</dd>
                 </div>
               ) : (
                 <div>
                   <dt className="text-text-muted">Avg guesses</dt>
-                  <dd className="font-semibold text-white">{player.summary.avgGuesses.toFixed(2)}</dd>
+                  <dd className="font-semibold text-text">{player.summary.avgGuesses.toFixed(2)}</dd>
                 </div>
               )}
               <div>
                 <dt className="text-text-muted">In progress</dt>
-                <dd className="font-semibold text-white">{player.summary.attemptedNotCompletedDays}</dd>
+                <dd className="font-semibold text-text">{player.summary.attemptedNotCompletedDays}</dd>
               </div>
             </dl>
           </div>
@@ -680,6 +745,7 @@ function GameSection({
   yTickStep,
   minYMax,
   xTickFormatter,
+  framed = true,
   onPointSelect,
 }: {
   title: string;
@@ -692,16 +758,16 @@ function GameSection({
   yTickStep?: number;
   minYMax?: number;
   xTickFormatter?: (value: string) => string;
+  framed?: boolean;
   onPointSelect?: (payload: { playerLabel: string; day: ChartDay; variant: GameKind; profileId: string }) => void;
 }) {
   if (!compare) return null;
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/5 p-4">
-      <div>
-        <h2 className="font-semibold">{title}</h2>
-        <p className="mt-1 text-xs text-text-muted">{subtitle}</p>
-      </div>
+    <section className={framed ? "rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5" : ""}>
+      {/* <div>
+        <h2 className="font-semibold">{title}</h2> */}
+      {/* </div> */}
 
       <MetricLineChart
         axisDates={compare.axisDates}
@@ -714,7 +780,8 @@ function GameSection({
         variant={variant}
         onPointSelect={onPointSelect}
       />
-
+    <p className="mt-1 text-xs text-text-muted">{subtitle}</p>
+     
       <PlayerBreakdown players={players} variant={variant} />
     </section>
   );
@@ -727,7 +794,7 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
 
   if (!day.completed) {
     return (
-      <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
+      <span className="inline-flex items-center rounded-full border border-amber-600/30 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
         Playing…
       </span>
     );
@@ -736,7 +803,7 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
   if (day.won) {
     if (kind === "hangman" && day.perfect) {
       return (
-        <span className="inline-flex items-center rounded-full border border-yellow-400/30 bg-yellow-400/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-300">
+        <span className="inline-flex items-center rounded-full border border-yellow-600/35 bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900 dark:border-yellow-400/30 dark:bg-yellow-400/10 dark:text-yellow-300">
           ★ Perfect
         </span>
       );
@@ -748,7 +815,7 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
           ? `Solved · ${day.guessedCount}`
           : `Won · ${day.guessedCount}`;
     return (
-      <span className="inline-flex items-center rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-300">
+      <span className="inline-flex items-center rounded-full border border-emerald-600/30 bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-900 dark:border-green-500/25 dark:bg-green-500/10 dark:text-green-300">
         {label}
       </span>
     );
@@ -761,7 +828,7 @@ function TodayStatusCell({ day, kind }: { day: CompareDay | null; kind: GameKind
         ? `Missed · ${day.guessedCount}`
         : `Lost · ${day.guessedCount}`;
   return (
-    <span className="inline-flex items-center rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400">
+    <span className="inline-flex items-center rounded-full border border-rose-600/35 bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-900 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">
       {label}
     </span>
   );
@@ -774,12 +841,12 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
         <article
           key={row.profileId}
           className={[
-            "rounded-lg border border-white/10 bg-black/10 p-3",
+            "rounded-lg border border-slate-300/70 bg-slate-100/70 p-3 dark:border-white/10 dark:bg-black/10",
             row.isMe ? "border-link/40 bg-link/5" : "",
           ].join(" ")}
         >
           <div className="mb-2 flex items-baseline gap-1.5">
-            <span className="text-sm font-semibold text-white">{row.label}</span>
+            <span className="text-sm font-semibold text-text">{row.label}</span>
             {row.isMe ? (
               <span className="text-[10px] text-text-muted">you</span>
             ) : (
@@ -804,6 +871,10 @@ function TodayGrid({ rows }: { rows: TodayRow[] }) {
               <span className="text-[11px] uppercase tracking-wide text-text-muted">Semantle</span>
               <TodayStatusCell day={row.semantleDay} kind="semantle" />
             </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Wordle</span>
+              <TodayStatusCell day={row.wordleDay} kind="wordle" />
+            </div>
           </div>
         </article>
       ))}
@@ -818,20 +889,24 @@ export default function SocialPage() {
   const [profileHandle, setProfileHandle] = useState<string>("");
   const [profileDisplayName, setProfileDisplayName] = useState<string>("");
   const [profileInput, setProfileInput] = useState("");
+  const [isEditingProfileName, setIsEditingProfileName] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "success" | "error">("idle");
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hangmanCompare, setHangmanCompare] = useState<CompareResponse | null>(null);
   const [wurpleEasyCompare, setWurpleEasyCompare] = useState<CompareResponse | null>(null);
   const [wurpleChallengeCompare, setWurpleChallengeCompare] = useState<CompareResponse | null>(null);
   const [semantleCompare, setSemantleCompare] = useState<CompareResponse | null>(null);
+  const [wordleCompare, setWordleCompare] = useState<CompareResponse | null>(null);
   const [wurpleError, setWurpleError] = useState<string | null>(null);
   const [follows, setFollows] = useState<FollowItem[]>([]);
   const [followers, setFollowers] = useState<FollowItem[]>([]);
   const [blockedPlayers, setBlockedPlayers] = useState<BlockItem[]>([]);
   const [semantleText, setSemantleText] = useState("");
   const [isImportingSemantle, setIsImportingSemantle] = useState(false);
+  const [wordleText, setWordleText] = useState("");
+  const [isImportingWordle, setIsImportingWordle] = useState(false);
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
   const [chartFromDate, setChartFromDate] = useState("");
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
@@ -846,6 +921,14 @@ export default function SocialPage() {
   } | null>(null);
   const [localWurpleGuessMap, setLocalWurpleGuessMap] = useState<Record<string, string[]>>({});
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
+
+  const showStatus = (message: string, tone: "success" | "error" | "info" = "success") => {
+    setStatus({ message, tone });
+  };
+
+  const clearStatus = () => {
+    setStatus(null);
+  };
 
   async function importLocalWurpleHistory() {
     if (didImportLocalWurple || typeof window === "undefined") return;
@@ -980,13 +1063,14 @@ export default function SocialPage() {
       }
       const compareQuery = compareParams.toString();
 
-      const [linkRes, followsRes, hangmanRes, wurpleEasyRes, wurpleChallengeRes, semantleRes] = await Promise.all([
+      const [linkRes, followsRes, hangmanRes, wurpleEasyRes, wurpleChallengeRes, semantleRes, wordleRes] = await Promise.all([
         fetch("/api/social/follow-link", { cache: "no-store" }),
         fetch("/api/social/follows", { cache: "no-store" }),
         fetch(`/api/social/compare/hangman?${compareQuery}`, { cache: "no-store" }),
         fetch(`/api/social/compare/wurple?${compareQuery}&mode=easy`, { cache: "no-store" }),
         fetch(`/api/social/compare/wurple?${compareQuery}&mode=challenge`, { cache: "no-store" }),
         fetch(`/api/social/compare/semantle?${compareQuery}`, { cache: "no-store" }),
+        fetch(`/api/social/compare/wordle?${compareQuery}`, { cache: "no-store" }),
       ]);
 
       if (linkRes.ok) {
@@ -1049,6 +1133,12 @@ export default function SocialPage() {
         setSemantleCompare(null);
       }
 
+      if (wordleRes.ok) {
+        setWordleCompare((await wordleRes.json()) as CompareResponse);
+      } else {
+        setWordleCompare(null);
+      }
+
       if (missingWurpleModes.length === 2) {
         setWurpleError("Wurple social stats are not available yet.");
       } else if (missingWurpleModes.length === 1) {
@@ -1063,6 +1153,7 @@ export default function SocialPage() {
       setWurpleEasyCompare(null);
       setWurpleChallengeCompare(null);
       setSemantleCompare(null);
+      setWordleCompare(null);
     }
   }
 
@@ -1073,6 +1164,12 @@ export default function SocialPage() {
   useEffect(() => {
     setSelectedDetailPoint(null);
   }, [activeChartTab, range, chartFromDate]);
+
+  useEffect(() => {
+    if (!status) return;
+    const timer = window.setTimeout(() => setStatus(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1087,8 +1184,8 @@ export default function SocialPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setStatus(data.alreadyFollowing ? "Already following." : "Now following!");
-      else setStatus(data.error ?? "Unable to follow");
+      if (res.ok) showStatus(data.alreadyFollowing ? "Already following." : "Now following!", data.alreadyFollowing ? "info" : "success");
+      else showStatus(data.error ?? "Unable to follow", "error");
 
       params.delete("follow");
       const next = params.toString();
@@ -1099,11 +1196,13 @@ export default function SocialPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const hangmanPlayers = useMemo(() => buildPlayers(hangmanCompare, "wrongGuesses"), [hangmanCompare]);
-  const wurpleEasyPlayers = useMemo(() => buildPlayers(wurpleEasyCompare, "guessedCount"), [wurpleEasyCompare]);
-  const wurpleChallengePlayers = useMemo(() => buildPlayers(wurpleChallengeCompare, "guessedCount"), [wurpleChallengeCompare]);
-  const semantlePlayers = useMemo(() => buildPlayers(semantleCompare, "guessedCount"), [semantleCompare]);
+  const hangmanPlayers = useMemo(() => buildPlayers(hangmanCompare, "wrongGuesses").slice(0, MAX_CHART_PLAYERS), [hangmanCompare]);
+  const wurpleEasyPlayers = useMemo(() => buildPlayers(wurpleEasyCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [wurpleEasyCompare]);
+  const wurpleChallengePlayers = useMemo(() => buildPlayers(wurpleChallengeCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [wurpleChallengeCompare]);
+  const semantlePlayers = useMemo(() => buildPlayers(semantleCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [semantleCompare]);
+  const wordlePlayers = useMemo(() => buildPlayers(wordleCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [wordleCompare]);
   const semantleTodayPuzzleKey = useMemo(() => getSemantleCurrentPuzzleKey(), []);
+  const wordleTodayPuzzleKey = useMemo(() => getWordleCurrentPuzzleKey(), []);
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
 
@@ -1119,8 +1218,9 @@ export default function SocialPage() {
       wurpleEasyDay: findFollowDay(wurpleEasyCompare, follow.profileId, todayKey),
       wurpleChallengeDay: findFollowDay(wurpleChallengeCompare, follow.profileId, todayKey),
       semantleDay: findFollowDay(semantleCompare, follow.profileId, semantleTodayPuzzleKey),
+      wordleDay: findFollowDay(wordleCompare, follow.profileId, wordleTodayPuzzleKey),
     }));
-  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, todayKey, semantleTodayPuzzleKey]);
+  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, todayKey, semantleTodayPuzzleKey, wordleTodayPuzzleKey]);
 
   const activeChart = useMemo(() => {
     if (activeChartTab === "hangman") {
@@ -1129,6 +1229,7 @@ export default function SocialPage() {
         subtitle: "Daily wrong guesses per player. Lower is better. A white dot marks a perfect game.",
         compare: hangmanCompare,
         players: hangmanPlayers,
+        hiddenPlayerCount: Math.max(0, (hangmanCompare?.follows.length ?? 0) + 1 - MAX_CHART_PLAYERS),
         variant: "hangman" as GameKind,
         emptyMessage: "No daily Hangman schedule exists yet for this range.",
         highlightLegend: "Perfect game",
@@ -1144,6 +1245,7 @@ export default function SocialPage() {
         subtitle: "Daily guesses used in easy mode. Lower is better.",
         compare: wurpleEasyCompare,
         players: wurpleEasyPlayers,
+        hiddenPlayerCount: Math.max(0, (wurpleEasyCompare?.follows.length ?? 0) + 1 - MAX_CHART_PLAYERS),
         variant: "wurple" as GameKind,
         emptyMessage: "No Wurple easy schedule exists yet for this range.",
         highlightLegend: undefined,
@@ -1159,6 +1261,7 @@ export default function SocialPage() {
         subtitle: "Guesses per Semantle puzzle number. Lower is better.",
         compare: semantleCompare,
         players: semantlePlayers,
+        hiddenPlayerCount: Math.max(0, (semantleCompare?.follows.length ?? 0) + 1 - MAX_CHART_PLAYERS),
         variant: "semantle" as GameKind,
         emptyMessage: "No Semantle results have been imported for this range yet.",
         highlightLegend: undefined,
@@ -1168,11 +1271,28 @@ export default function SocialPage() {
       };
     }
 
+    if (activeChartTab === "wordle") {
+      return {
+        title: "Wordle",
+        subtitle: "Guesses per Wordle puzzle number. Lower is better.",
+        compare: wordleCompare,
+        players: wordlePlayers,
+        hiddenPlayerCount: Math.max(0, (wordleCompare?.follows.length ?? 0) + 1 - MAX_CHART_PLAYERS),
+        variant: "wordle" as GameKind,
+        emptyMessage: "No Wordle results have been imported for this range yet.",
+        highlightLegend: undefined,
+        yTickStep: 1,
+        minYMax: 6,
+        xTickFormatter: formatWordlePuzzleTick,
+      };
+    }
+
     return {
       title: "Wurple · Challenge",
       subtitle: "Daily guesses used in challenge mode. Lower is better.",
       compare: wurpleChallengeCompare,
       players: wurpleChallengePlayers,
+      hiddenPlayerCount: Math.max(0, (wurpleChallengeCompare?.follows.length ?? 0) + 1 - MAX_CHART_PLAYERS),
       variant: "wurple" as GameKind,
       emptyMessage: "No Wurple challenge schedule exists yet for this range.",
       highlightLegend: undefined,
@@ -1186,6 +1306,8 @@ export default function SocialPage() {
     hangmanPlayers,
     semantleCompare,
     semantlePlayers,
+    wordleCompare,
+    wordlePlayers,
     wurpleEasyCompare,
     wurpleEasyPlayers,
     wurpleChallengeCompare,
@@ -1202,14 +1324,15 @@ export default function SocialPage() {
       wurpleEasyDay: wurpleEasyCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
       wurpleChallengeDay: wurpleChallengeCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
       semantleDay: semantleCompare?.me.daily.find((d) => d.date === semantleTodayPuzzleKey) ?? null,
+      wordleDay: wordleCompare?.me.daily.find((d) => d.date === wordleTodayPuzzleKey) ?? null,
     }),
-    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, todayKey, semantleTodayPuzzleKey, profileHandle, profileDisplayName]
+    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, todayKey, semantleTodayPuzzleKey, wordleTodayPuzzleKey, profileHandle, profileDisplayName]
   );
 
   const todayGridRows = useMemo<TodayRow[]>(
     () => [
       myTodayRow,
-      ...followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay, semantleDay }) => ({
+      ...followedTodayRows.map(({ follow, hangmanDay, wurpleEasyDay, wurpleChallengeDay, semantleDay, wordleDay }) => ({
         profileId: follow.profileId,
         label: follow.displayName ?? `@${follow.handle}`,
         handle: follow.handle,
@@ -1218,6 +1341,7 @@ export default function SocialPage() {
         wurpleEasyDay,
         wurpleChallengeDay,
         semantleDay,
+        wordleDay,
       })),
     ],
     [myTodayRow, followedTodayRows]
@@ -1234,7 +1358,7 @@ export default function SocialPage() {
     if (!rawFollowUrl) {
       setCopyFeedback("error");
       setTimeout(() => setCopyFeedback("idle"), 1600);
-      setStatus("Follow link is not ready yet. Please refresh the page.");
+      showStatus("Follow link is not ready yet. Please refresh the page.", "error");
       return;
     }
 
@@ -1243,7 +1367,7 @@ export default function SocialPage() {
         await navigator.clipboard.writeText(textToCopy);
         setCopyFeedback("success");
         setTimeout(() => setCopyFeedback("idle"), 1600);
-        setStatus("Follow link copied!");
+        showStatus("Follow link copied!", "success");
         return;
       }
     } catch {
@@ -1265,7 +1389,7 @@ export default function SocialPage() {
       if (copied) {
         setCopyFeedback("success");
         setTimeout(() => setCopyFeedback("idle"), 1600);
-        setStatus("Follow link copied!");
+        showStatus("Follow link copied!", "success");
         return;
       }
     } catch {
@@ -1274,7 +1398,7 @@ export default function SocialPage() {
 
     setCopyFeedback("error");
     setTimeout(() => setCopyFeedback("idle"), 1600);
-    setStatus("Could not copy link. Please try again.");
+    showStatus("Could not copy link. Please try again.", "error");
   }
 
   async function followByHandleOrToken(e: React.FormEvent) {
@@ -1300,14 +1424,14 @@ export default function SocialPage() {
 
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      setStatus(data.alreadyFollowing ? "Already following." : "Followed successfully!");
+      showStatus(data.alreadyFollowing ? "Already following." : "Followed successfully!", data.alreadyFollowing ? "info" : "success");
       setFollowInput("");
       await loadAll(range);
     } else {
       if (data.error === "FOLLOW_BLOCKED") {
-        setStatus("You can’t follow this player due to a block.");
+        showStatus("You can’t follow this player due to a block.", "error");
       } else {
-        setStatus(data.error ?? "Could not follow that profile");
+        showStatus(data.error ?? "Could not follow that profile", "error");
       }
     }
   }
@@ -1316,7 +1440,7 @@ export default function SocialPage() {
     const res = await fetch(`/api/social/follow/${profileId}`, { method: "DELETE" });
     if (res.ok) {
       await loadAll(range);
-      setStatus("Unfollowed");
+      showStatus("Unfollowed", "info");
     }
   }
 
@@ -1329,12 +1453,12 @@ export default function SocialPage() {
 
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      setStatus(data.alreadyBlocked ? "Player is already blocked." : "Player blocked.");
+      showStatus(data.alreadyBlocked ? "Player is already blocked." : "Player blocked.", data.alreadyBlocked ? "info" : "success");
       await loadAll(range);
       return;
     }
 
-    setStatus(data.error ?? "Could not block this player");
+    showStatus(data.error ?? "Could not block this player", "error");
   }
 
   async function unblockPlayer(profileId: string) {
@@ -1342,12 +1466,12 @@ export default function SocialPage() {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok) {
-      setStatus("Player unblocked.");
+      showStatus("Player unblocked.", "success");
       await loadAll(range);
       return;
     }
 
-    setStatus(data.error ?? "Could not unblock this player");
+    showStatus(data.error ?? "Could not unblock this player", "error");
   }
 
   async function importSemantleResult(e: React.FormEvent) {
@@ -1355,7 +1479,7 @@ export default function SocialPage() {
     const text = semantleText.trim();
     if (!text) return;
 
-    setStatus(null);
+    clearStatus();
     setIsImportingSemantle(true);
     try {
       const res = await fetch("/api/semantle/import", {
@@ -1367,20 +1491,54 @@ export default function SocialPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.error === "INVALID_SEMANTLE_RESULT") {
-          setStatus("Could not parse that Semantle result. Paste the full shared block.");
+          showStatus("Could not parse that Semantle result. Paste the full shared block.", "error");
         } else {
-          setStatus(data.error ?? "Could not import Semantle result");
+          showStatus(data.error ?? "Could not import Semantle result", "error");
         }
         return;
       }
 
       setSemantleText("");
       await loadAll(range);
-      setStatus(data.message ?? "Semantle result imported.");
+      showStatus(data.message ?? "Semantle result imported.", "success");
     } catch {
-      setStatus("Could not import Semantle result. Please refresh and try again.");
+      showStatus("Could not import Semantle result. Please refresh and try again.", "error");
     } finally {
       setIsImportingSemantle(false);
+    }
+  }
+
+  async function importWordleResult(e: React.FormEvent) {
+    e.preventDefault();
+    const text = wordleText.trim();
+    if (!text) return;
+
+    clearStatus();
+    setIsImportingWordle(true);
+    try {
+      const res = await fetch("/api/wordle/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === "INVALID_WORDLE_RESULT") {
+          showStatus("Could not parse that Wordle result. Paste the full shared block.", "error");
+        } else {
+          showStatus(data.error ?? "Could not import Wordle result", "error");
+        }
+        return;
+      }
+
+      setWordleText("");
+      await loadAll(range);
+      showStatus(data.message ?? "Wordle result imported.", "success");
+    } catch {
+      showStatus("Could not import Wordle result. Please refresh and try again.", "error");
+    } finally {
+      setIsImportingWordle(false);
     }
   }
 
@@ -1398,7 +1556,7 @@ export default function SocialPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setStatus(data.error ?? "Could not save profile name");
+        showStatus(data.error ?? "Could not save profile name", "error");
         return;
       }
 
@@ -1408,7 +1566,8 @@ export default function SocialPage() {
       setProfileDisplayName(savedName);
       setProfileInput(savedName);
       setProfileHandle(savedHandle);
-      setStatus(savedName ? "Profile name saved" : "Profile name removed");
+      setIsEditingProfileName(false);
+      showStatus(savedName ? "Profile name saved" : "Profile name removed", "success");
 
       await loadAll(range);
     } finally {
@@ -1446,60 +1605,82 @@ export default function SocialPage() {
         </div>
       )}
 
-      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Overview</div>
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-text dark:text-white/85">Overview</div>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-4">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-3 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Profile</h2>
           <span className="text-xs text-text-muted">@{profileHandle || "player"}</span>
         </div>
 
-        <div className="space-y-2.5">
-          <div className="text-sm font-semibold">Display name</div>
-          <div className="text-xs text-text-muted">
-            This name appears in social compare views.
-          </div>
-          <form onSubmit={saveProfileName} className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={profileInput}
-              onChange={(e) => setProfileInput(e.target.value)}
-              placeholder={`Display name (or use @${profileHandle || "player"})`}
-              className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-              maxLength={40}
-            />
-            <button
-              type="submit"
-              disabled={isSavingProfile}
-              className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed sm:min-w-[92px]"
-            >
-              {isSavingProfile ? "Saving..." : "Save"}
-            </button>
-          </form>
-          {profileDisplayName && (
-            <div className="text-xs text-text-muted">
-              Current name: <span className="font-semibold text-white">{profileDisplayName}</span>
-            </div>
-          )}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm text-text-muted">Display name:</div>
+            <div className="text-sm font-semibold text-text">{profileDisplayName || `@${profileHandle || "player"}`}</div>
 
-          <div className="pt-1">
+            <button
+              type="button"
+              aria-label="Edit display name"
+              onClick={() => {
+                setProfileInput(profileDisplayName);
+                setIsEditingProfileName(true);
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-sm text-text-muted transition hover:bg-slate-100 hover:text-text dark:border-white/15 dark:hover:bg-white/10"
+            >
+              ✎
+            </button>
+
             <button
               type="button"
               onClick={copyFollowLink}
               disabled={!followUrl && !followToken}
               className={[
-                "rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed",
-                copyFeedback === "success" ? "bg-emerald-600" : copyFeedback === "error" ? "bg-red-600" : "bg-link",
+                "rounded-lg px-3 py-1.5 text-xs font-bold transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100",
+                copyFeedback === "success"
+                  ? "bg-emerald-600 text-white"
+                  : copyFeedback === "error"
+                    ? "bg-red-600 text-white"
+                    : "bg-link text-white dark:text-slate-950",
               ].join(" ")}
             >
               {copyFeedback === "success" ? "Link copied!" : copyFeedback === "error" ? "Copy failed" : "Share follow link"}
             </button>
           </div>
+
+          {isEditingProfileName ? (
+            <form onSubmit={saveProfileName} className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={profileInput}
+                onChange={(e) => setProfileInput(e.target.value)}
+                placeholder={`Display name (or use @${profileHandle || "player"})`}
+                className="w-full rounded-lg border border-slate-300 bg-bg px-3 py-2 text-sm dark:border-white/10"
+                maxLength={40}
+              />
+              <button
+                type="submit"
+                disabled={isSavingProfile}
+                className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 dark:text-slate-950 sm:min-w-[92px]"
+              >
+                {isSavingProfile ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileInput(profileDisplayName);
+                  setIsEditingProfileName(false);
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-text-muted transition hover:bg-slate-100 hover:text-text dark:border-white/20 dark:hover:bg-white/10"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : null}
         </div>
       </section>
 
-      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Activity</div>
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-text dark:text-white/85">Activity</div>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-3 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Today</h2>
           <div className="text-xs text-text-muted">{todayKey}</div>
@@ -1512,15 +1693,15 @@ export default function SocialPage() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-3 dark:border-white/10 dark:bg-white/5">
+        <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">History charts</h2>
             <span className="text-xs text-text-muted">{chartRangeLabel}</span>
           </div>
 
           <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            <label className="flex items-center gap-2 text-[11px] text-text-muted">
               <span>Start</span>
               <input
                 type="date"
@@ -1535,7 +1716,7 @@ export default function SocialPage() {
               onClick={() => {
                 setChartFromDate("");
               }}
-              className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted"
+              className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted transition hover:bg-bg-soft hover:text-text"
             >
               Clear
             </button>
@@ -1547,14 +1728,17 @@ export default function SocialPage() {
               { id: "wurpleEasy", label: "Wurple Easy" },
               { id: "wurpleChallenge", label: "Wurple Challenge" },
               { id: "semantle", label: "Semantle" },
+              { id: "wordle", label: "Wordle" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveChartTab(tab.id as ChartTab)}
                 className={[
-                  "rounded-lg px-3 py-2 text-sm font-semibold transition",
-                  activeChartTab === tab.id ? "bg-link text-white" : "bg-bg-soft text-text-muted hover:text-text",
+                  "rounded-lg px-3 py-2 text-sm font-semibold transition hover:brightness-110",
+                  activeChartTab === tab.id
+                    ? "bg-link text-white ring-1 ring-black/15 dark:text-slate-950 dark:ring-white/20"
+                    : "bg-bg-soft text-text-muted hover:text-text",
                 ].join(" ")}
               >
                 {tab.label}
@@ -1562,8 +1746,18 @@ export default function SocialPage() {
             ))}
           </div>
 
+          {(activeChartTab === "semantle" || activeChartTab === "wordle") && (
+            <p className="text-xs text-text-muted">** Use the Imports section below to add new results for this tab. **</p>
+          )}
+
           {wurpleError && activeChartTab !== "hangman" && (
             <p className="mt-3 text-xs text-amber-300">⚠️ {wurpleError}</p>
+          )}
+
+          {activeChart.hiddenPlayerCount > 0 && (
+            <p className="text-xs text-text-muted">
+              Showing {MAX_CHART_PLAYERS} players at a time ({activeChart.hiddenPlayerCount} hidden).
+            </p>
           )}
         </div>
 
@@ -1578,6 +1772,7 @@ export default function SocialPage() {
           yTickStep={activeChart.yTickStep}
           minYMax={activeChart.minYMax}
           xTickFormatter={activeChart.xTickFormatter}
+          framed={false}
           onPointSelect={({ playerLabel, day, variant, profileId }) => {
             if (variant === "semantle") {
               setSelectedDetailPoint({
@@ -1617,15 +1812,19 @@ export default function SocialPage() {
                 wurpleSeed: day.date,
                 wurpleMode: mode,
               });
+              return;
+            }
+
+            if (variant === "wordle") {
+              setSelectedDetailPoint({
+                title: "Wordle result details",
+                playerLabel,
+                detailText: formatWordleDetailText(day),
+                variant,
+              });
             }
           }}
         />
-
-        {(activeChart.variant === "semantle" || activeChart.variant === "hangman" || activeChart.variant === "wurple") && (
-          <p className="text-xs text-text-muted">
-            Click any {activeChart.variant === "semantle" ? "Semantle" : activeChart.variant === "hangman" ? "Hangman" : "Wurple"} chart dot to open full result details.
-          </p>
-        )}
 
         {activeChart.compare?.isCapped && (
           <p className="text-xs text-amber-300">
@@ -1634,61 +1833,86 @@ export default function SocialPage() {
         )}
 
         {!activeChart.compare && (
-          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center text-sm text-text-muted">
+          <div className="border border-dashed border-slate-300/70 bg-slate-100/70 px-4 py-8 text-center text-sm text-text-muted dark:border-white/10 dark:bg-black/10">
             No stats are available for this tab yet.
           </div>
         )}
       </section>
 
-      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Imports</div>
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-text dark:text-white/85">Imports</div>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-3">
-        <div className="text-sm font-semibold">Import Semantle score</div>
-        <div className="text-xs text-text-muted">
-          Paste your shared Semantle result block and we&apos;ll save it to your profile.
-        </div>
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-3 dark:border-white/10 dark:bg-white/5">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Import Semantle score</div>
+            <div className="text-xs text-text-muted">
+              Paste your shared Semantle result block and we&apos;ll save it to your profile.
+            </div>
 
-        <form onSubmit={importSemantleResult} className="space-y-2.5">
-          <textarea
-            value={semantleText}
-            onChange={(e) => setSemantleText(e.target.value)}
-            placeholder={"Semantle #1209\n✅ 200 Guesses\n🔝 Guess #199\n🥈 983/1000\n💡 0 Hints\nsemantle.com"}
-            className="min-h-28 w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-          />
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isImportingSemantle || semantleText.trim().length === 0}
-              className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {isImportingSemantle ? "Importing..." : "Import score"}
-            </button>
+            <form onSubmit={importSemantleResult} className="space-y-2.5">
+              <textarea
+                value={semantleText}
+                onChange={(e) => setSemantleText(e.target.value)}
+                placeholder={"Semantle #1209\n✅ 200 Guesses\n🔝 Guess #199\n🥈 983/1000\n💡 0 Hints\nsemantle.com"}
+                className="min-h-28 w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isImportingSemantle || semantleText.trim().length === 0}
+                  className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 dark:text-slate-950"
+                >
+                  {isImportingSemantle ? "Importing..." : "Import score"}
+                </button>
+              </div>
+            </form>
           </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Import Wordle score</div>
+            <div className="text-xs text-text-muted">
+              Paste your shared Wordle result block and we&apos;ll save it to your profile.
+            </div>
+
+            <form onSubmit={importWordleResult} className="space-y-2.5">
+              <textarea
+                value={wordleText}
+                onChange={(e) => setWordleText(e.target.value)}
+                placeholder={"Wordle 1,737 3/6\n⬛🟨⬛⬛⬛\n🟩🟨⬛🟨⬛\n🟩🟩🟩🟩🟩"}
+                className="min-h-28 w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isImportingWordle || wordleText.trim().length === 0}
+                  className="rounded-lg bg-link px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 dark:text-slate-950"
+                >
+                  {isImportingWordle ? "Importing..." : "Import score"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <div className="text-sm font-bold uppercase tracking-[0.16em] text-text dark:text-white/85">Social connections</div>
+
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-2 dark:border-white/10 dark:bg-white/5">
+        <h2 className="text-sm font-semibold">Follow people</h2>
+        <form onSubmit={followByHandleOrToken} className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={followInput}
+            onChange={(e) => setFollowInput(e.target.value)}
+            placeholder="@handle or follow link"
+            className="w-full rounded-lg border border-slate-300 bg-bg px-3 py-2 text-sm dark:border-white/10"
+          />
+          <button type="submit" className="rounded-lg bg-easy px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 sm:min-w-[96px]">
+            Follow
+          </button>
         </form>
       </section>
 
-      <div className="text-sm font-bold uppercase tracking-[0.16em] text-white/85">Social connections</div>
-
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 space-y-4">
-        <h2 className="text-sm font-semibold">Follow people</h2>
-
-        <div className="space-y-2.5">
-          <div className="text-sm font-semibold">Follow someone</div>
-          <form onSubmit={followByHandleOrToken} className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={followInput}
-              onChange={(e) => setFollowInput(e.target.value)}
-              placeholder="@handle or follow link"
-              className="w-full rounded-lg border border-white/10 bg-bg px-3 py-2 text-sm"
-            />
-            <button type="submit" className="rounded-lg bg-easy px-4 py-2 text-sm font-bold text-white sm:min-w-[96px]">
-              Follow
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Following ({follows.length})</h2>
@@ -1701,23 +1925,23 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {follows.length === 0 && <p className="text-sm text-text-muted">You are not following anyone yet.</p>}
           {follows.map((f) => (
-            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div key={f.profileId} className="flex items-center justify-between gap-2 rounded-lg border border-slate-300/70 px-3 py-2 dark:border-white/10">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
               </div>
-              <div className="flex items-center gap-2 self-end sm:self-auto">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void blockPlayer(f.profileId)}
-                  className="text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300"
+                  className="text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300 transition hover:bg-red-500/20"
                 >
                   Block
                 </button>
                 <button
                   type="button"
                   onClick={() => void unfollow(f.profileId)}
-                  className="text-xs rounded-md border border-white/20 px-2 py-1"
+                  className="text-xs rounded-md border border-white/20 px-2 py-1 transition hover:bg-bg-soft"
                 >
                   Unfollow
                 </button>
@@ -1727,7 +1951,7 @@ export default function SocialPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Followers ({followers.length})</h2>
@@ -1740,15 +1964,15 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {followers.length === 0 && <p className="text-sm text-text-muted">No one follows you yet.</p>}
           {followers.map((f) => (
-            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div key={f.profileId} className="flex items-center justify-between gap-2 rounded-lg border border-slate-300/70 px-3 py-2 dark:border-white/10">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
               </div>
               <button
                 type="button"
                 onClick={() => void blockPlayer(f.profileId)}
-                className="self-end text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300 sm:self-auto"
+                className="shrink-0 text-xs rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300 transition hover:bg-red-500/20"
               >
                 Block
               </button>
@@ -1757,7 +1981,7 @@ export default function SocialPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5">
+      <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Blocked ({blockedPlayers.length})</h2>
@@ -1770,15 +1994,15 @@ export default function SocialPage() {
         <div className="mt-3 space-y-2">
           {blockedPlayers.length === 0 && <p className="text-sm text-text-muted">You have not blocked anyone.</p>}
           {blockedPlayers.map((f) => (
-            <div key={f.profileId} className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div key={f.profileId} className="flex items-center justify-between gap-2 rounded-lg border border-slate-300/70 px-3 py-2 dark:border-white/10">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold">{f.displayName ?? `@${f.handle}`}</div>
                 <div className="text-xs text-text-muted">@{f.handle}</div>
               </div>
               <button
                 type="button"
                 onClick={() => void unblockPlayer(f.profileId)}
-                className="self-end text-xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300 sm:self-auto"
+                className="shrink-0 text-xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300 transition hover:bg-emerald-500/20"
               >
                 Unblock
               </button>
@@ -1804,7 +2028,7 @@ export default function SocialPage() {
               <button
                 type="button"
                 onClick={() => setSelectedDetailPoint(null)}
-                className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted"
+                className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted transition hover:bg-bg-soft hover:text-text"
               >
                 Close
               </button>
@@ -1847,7 +2071,22 @@ export default function SocialPage() {
         </div>
       )}
 
-      {status && <p className="text-sm text-emerald-400">{status}</p>}
+      {status && (
+        <div
+          className={[
+            "fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2 text-sm shadow-lg",
+            status.tone === "error"
+              ? "border border-red-500/40 bg-red-600/90 text-white"
+              : status.tone === "info"
+                ? "border border-white/20 bg-black/80 text-white"
+                : "border border-emerald-500/40 bg-emerald-600/90 text-white",
+          ].join(" ")}
+          role="status"
+          aria-live="polite"
+        >
+          {status.message}
+        </div>
+      )}
     </main>
   );
 }
