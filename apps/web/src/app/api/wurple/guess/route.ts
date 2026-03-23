@@ -24,6 +24,16 @@ function seedToUtcDate(seed: string): Date | null {
   return date;
 }
 
+function hasGuesses(value: string | null | undefined) {
+  if (!value) return false;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.some((item) => typeof item === "string" && item.length > 0);
+  } catch {
+    return false;
+  }
+}
+
 async function savePlaySnapshot(args: {
   seed: string;
   mode: "easy" | "challenge";
@@ -38,13 +48,21 @@ async function savePlaySnapshot(args: {
   const sessionId = await requireSessionId();
   const { userId } = await auth();
   const completedAt = args.status === "playing" ? null : new Date();
+  const guessesJson = JSON.stringify(args.guesses);
 
   // For logged-in users, check if a userId-based play already exists
   if (userId) {
     const existing = await prisma.wurpleDailyPlay.findFirst({
       where: { seed: args.seed, mode: args.mode, userId },
-    });
+      select: { id: true, guessesJson: true },
+    } as any);
     if (existing) {
+      if (args.guesses.length > 0 && !hasGuesses((existing as any).guessesJson)) {
+        await prisma.wurpleDailyPlay.update({
+          where: { id: existing.id },
+          data: { guessesJson },
+        } as any);
+      }
       return; // Never overwrite existing userId play
     }
   }
@@ -56,15 +74,24 @@ async function savePlaySnapshot(args: {
       mode: args.mode,
       sessionId,
     },
-  });
+    select: { id: true, userId: true, guessesJson: true },
+  } as any);
 
   if (existingSession) {
     // If this is a new userId login (upgrading session → user), update the session play to link userId
+    const updateData: Record<string, unknown> = {};
     if (userId && !existingSession.userId) {
+      updateData.userId = userId;
+    }
+    if (args.guesses.length > 0 && !hasGuesses((existingSession as any).guessesJson)) {
+      updateData.guessesJson = guessesJson;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await prisma.wurpleDailyPlay.update({
         where: { id: existingSession.id },
-        data: { userId },
-      });
+        data: updateData,
+      } as any);
     }
     return; // Never overwrite existing play
   }
@@ -79,7 +106,7 @@ async function savePlaySnapshot(args: {
       userId,
       status: args.status,
       guessCount: args.guessCount,
-      guessesJson: JSON.stringify(args.guesses),
+      guessesJson,
       maxGuesses: args.maxGuesses,
       won: args.status === "won",
       completedAt,
