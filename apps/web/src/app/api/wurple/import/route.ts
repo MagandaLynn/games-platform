@@ -81,6 +81,16 @@ function chooseBest(current: ImportEntry | undefined, next: ImportEntry) {
   return nextCompletedAt >= currentCompletedAt ? next : current;
 }
 
+function hasGuesses(value: string | null | undefined) {
+  if (!value) return false;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.some((item) => typeof item === "string" && item.length > 0);
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -107,48 +117,82 @@ export async function POST(req: Request) {
     const sessionId = await requireSessionId();
     const { userId } = await auth();
 
-    await prisma.$transaction(
-      rows.map((entry) => {
-        const date = seedToUtcDate(entry.seed)!;
-        const completedAt = entry.status === "playing"
-          ? null
-          : entry.completedAt
-            ? new Date(entry.completedAt)
-            : new Date();
+    let imported = 0;
 
-        return prisma.wurpleDailyPlay.upsert({
-          where: {
-            seed_mode_session: {
-              seed: entry.seed,
-              mode: entry.mode,
-              sessionId,
-            },
-          },
-          update: {
-            userId,
-            status: entry.status,
-            guessCount: entry.guessCount,
-            guessesJson: JSON.stringify(entry.guesses),
-            won: entry.status === "won",
-            completedAt,
-          },
-          create: {
-            seed: entry.seed,
-            date,
-            mode: entry.mode,
-            sessionId,
-            userId,
-            status: entry.status,
-            guessCount: entry.guessCount,
-            guessesJson: JSON.stringify(entry.guesses),
-            won: entry.status === "won",
-            completedAt,
-          },
+    for (const entry of rows) {
+      const date = seedToUtcDate(entry.seed)!;
+      const completedAt = entry.status === "playing"
+        ? null
+        : entry.completedAt
+          ? new Date(entry.completedAt)
+          : new Date();
+
+      const guessesJson = JSON.stringify(entry.guesses);
+      const shouldBackfillGuesses = entry.guesses.length > 0;
+
+      if (userId) {
+        const existingByUser = await prisma.wurpleDailyPlay.findFirst({
+          where: { seed: entry.seed, mode: entry.mode, userId },
+          select: { id: true, guessesJson: true },
         } as any);
-      })
-    );
 
-    return Response.json({ ok: true, imported: rows.length, skipped: rawEntries.length - rows.length });
+        if (existingByUser) {
+          if (shouldBackfillGuesses && !hasGuesses((existingByUser as any).guessesJson)) {
+            await prisma.wurpleDailyPlay.update({
+              where: { id: existingByUser.id },
+              data: { guessesJson },
+            } as any);
+          }
+          imported += 1;
+          continue;
+        }
+      }
+
+      const existingBySession = await prisma.wurpleDailyPlay.findFirst({
+        where: { seed: entry.seed, mode: entry.mode, sessionId },
+        select: { id: true, userId: true, guessesJson: true },
+      } as any);
+
+      if (existingBySession) {
+        const updateData: Record<string, unknown> = {};
+
+        if (userId && !existingBySession.userId) {
+          updateData.userId = userId;
+        }
+        if (shouldBackfillGuesses && !hasGuesses((existingBySession as any).guessesJson)) {
+          updateData.guessesJson = guessesJson;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.wurpleDailyPlay.update({
+            where: { id: existingBySession.id },
+            data: updateData,
+          } as any);
+        }
+
+        imported += 1;
+        continue;
+      }
+
+      await prisma.wurpleDailyPlay.create({
+        data: {
+          seed: entry.seed,
+          date,
+          mode: entry.mode,
+          sessionId,
+          userId,
+          status: entry.status,
+          guessCount: entry.guessCount,
+          guessesJson,
+          won: entry.status === "won",
+          completedAt,
+        },
+      } as any);
+
+      imported += 1;
+    }
+
+    return Response.json({ ok: true, imported, skipped: rawEntries.length - rows.length });
   } catch (e: any) {
     return Response.json(
       { error: "IMPORT_FAILED", message: e?.message ?? "Failed to import local Wurple history" },

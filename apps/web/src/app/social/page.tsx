@@ -2261,7 +2261,7 @@ export default function SocialPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-text-muted">Color swatches are available for your locally saved Wurple runs.</div>
+                  <div className="text-xs text-text-muted">No color swatches are stored for this run yet.</div>
                 )}
               </div>
             )}
