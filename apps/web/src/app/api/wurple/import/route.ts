@@ -91,6 +91,16 @@ function hasGuesses(value: string | null | undefined) {
   }
 }
 
+function guessArrayLength(value: string | null | undefined) {
+  if (!value) return 0;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string").length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -133,14 +143,35 @@ export async function POST(req: Request) {
       if (userId) {
         const existingByUser = await prisma.wurpleDailyPlay.findFirst({
           where: { seed: entry.seed, mode: entry.mode, userId },
-          select: { id: true, guessesJson: true },
+          select: { id: true, status: true, guessCount: true, guessesJson: true },
         } as any);
 
         if (existingByUser) {
-          if (shouldBackfillGuesses && !hasGuesses((existingByUser as any).guessesJson)) {
+          const updateData: Record<string, unknown> = {};
+          const existingStatus = (existingByUser as any).status as string;
+          const existingGuessCount = typeof (existingByUser as any).guessCount === "number" ? (existingByUser as any).guessCount : 0;
+          const existingGuessArrayLen = guessArrayLength((existingByUser as any).guessesJson);
+
+          if (existingStatus === "playing") {
+            if (entry.status !== "playing") {
+              updateData.status = entry.status;
+              updateData.won = entry.status === "won";
+              updateData.completedAt = completedAt;
+            }
+
+            if (entry.guessCount > existingGuessCount) {
+              updateData.guessCount = entry.guessCount;
+            }
+          }
+
+          if (shouldBackfillGuesses && (entry.guesses.length > existingGuessArrayLen || !hasGuesses((existingByUser as any).guessesJson))) {
+            updateData.guessesJson = guessesJson;
+          }
+
+          if (Object.keys(updateData).length > 0) {
             await prisma.wurpleDailyPlay.update({
               where: { id: existingByUser.id },
-              data: { guessesJson },
+              data: updateData,
             } as any);
           }
           imported += 1;
@@ -150,16 +181,32 @@ export async function POST(req: Request) {
 
       const existingBySession = await prisma.wurpleDailyPlay.findFirst({
         where: { seed: entry.seed, mode: entry.mode, sessionId },
-        select: { id: true, userId: true, guessesJson: true },
+        select: { id: true, userId: true, status: true, guessCount: true, guessesJson: true },
       } as any);
 
       if (existingBySession) {
         const updateData: Record<string, unknown> = {};
+        const existingStatus = (existingBySession as any).status as string;
+        const existingGuessCount = typeof (existingBySession as any).guessCount === "number" ? (existingBySession as any).guessCount : 0;
+        const existingGuessArrayLen = guessArrayLength((existingBySession as any).guessesJson);
 
         if (userId && !existingBySession.userId) {
           updateData.userId = userId;
         }
-        if (shouldBackfillGuesses && !hasGuesses((existingBySession as any).guessesJson)) {
+
+        if (existingStatus === "playing") {
+          if (entry.status !== "playing") {
+            updateData.status = entry.status;
+            updateData.won = entry.status === "won";
+            updateData.completedAt = completedAt;
+          }
+
+          if (entry.guessCount > existingGuessCount) {
+            updateData.guessCount = entry.guessCount;
+          }
+        }
+
+        if (shouldBackfillGuesses && (entry.guesses.length > existingGuessArrayLen || !hasGuesses((existingBySession as any).guessesJson))) {
           updateData.guessesJson = guessesJson;
         }
 

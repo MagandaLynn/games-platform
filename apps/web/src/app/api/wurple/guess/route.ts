@@ -34,6 +34,16 @@ function hasGuesses(value: string | null | undefined) {
   }
 }
 
+function guessArrayLength(value: string | null | undefined) {
+  if (!value) return 0;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string").length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function savePlaySnapshot(args: {
   seed: string;
   mode: "easy" | "challenge";
@@ -54,16 +64,37 @@ async function savePlaySnapshot(args: {
   if (userId) {
     const existing = await prisma.wurpleDailyPlay.findFirst({
       where: { seed: args.seed, mode: args.mode, userId },
-      select: { id: true, guessesJson: true },
+      select: { id: true, status: true, guessCount: true, guessesJson: true },
     } as any);
     if (existing) {
-      if (args.guesses.length > 0 && !hasGuesses((existing as any).guessesJson)) {
+      const existingStatus = (existing as any).status as string;
+      const existingGuessCount = typeof (existing as any).guessCount === "number" ? (existing as any).guessCount : 0;
+      const existingGuessArrayLen = guessArrayLength((existing as any).guessesJson);
+      const updateData: Record<string, unknown> = {};
+
+      if (existingStatus === "playing") {
+        if (args.status !== "playing") {
+          updateData.status = args.status;
+          updateData.won = args.status === "won";
+          updateData.completedAt = completedAt;
+        }
+        if (args.guessCount > existingGuessCount) {
+          updateData.guessCount = args.guessCount;
+          updateData.maxGuesses = args.maxGuesses;
+        }
+      }
+
+      if (args.guesses.length > existingGuessArrayLen || (args.guesses.length > 0 && !hasGuesses((existing as any).guessesJson))) {
+        updateData.guessesJson = guessesJson;
+      }
+
+      if (Object.keys(updateData).length > 0) {
         await prisma.wurpleDailyPlay.update({
           where: { id: existing.id },
-          data: { guessesJson },
+          data: updateData,
         } as any);
       }
-      return; // Never overwrite existing userId play
+      return;
     }
   }
 
@@ -74,16 +105,33 @@ async function savePlaySnapshot(args: {
       mode: args.mode,
       sessionId,
     },
-    select: { id: true, userId: true, guessesJson: true },
+    select: { id: true, userId: true, status: true, guessCount: true, guessesJson: true },
   } as any);
 
   if (existingSession) {
     // If this is a new userId login (upgrading session → user), update the session play to link userId
     const updateData: Record<string, unknown> = {};
+    const existingStatus = (existingSession as any).status as string;
+    const existingGuessCount = typeof (existingSession as any).guessCount === "number" ? (existingSession as any).guessCount : 0;
+    const existingGuessArrayLen = guessArrayLength((existingSession as any).guessesJson);
+
     if (userId && !existingSession.userId) {
       updateData.userId = userId;
     }
-    if (args.guesses.length > 0 && !hasGuesses((existingSession as any).guessesJson)) {
+
+    if (existingStatus === "playing") {
+      if (args.status !== "playing") {
+        updateData.status = args.status;
+        updateData.won = args.status === "won";
+        updateData.completedAt = completedAt;
+      }
+      if (args.guessCount > existingGuessCount) {
+        updateData.guessCount = args.guessCount;
+        updateData.maxGuesses = args.maxGuesses;
+      }
+    }
+
+    if (args.guesses.length > existingGuessArrayLen || (args.guesses.length > 0 && !hasGuesses((existingSession as any).guessesJson))) {
       updateData.guessesJson = guessesJson;
     }
 
