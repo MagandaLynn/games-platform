@@ -40,14 +40,8 @@ async function savePlaySnapshot(args: {
 
   // For logged-in users, check if a userId-based play already exists
   if (userId) {
-    const existing = await prisma.wurpleDailyPlay.findUnique({
-      where: {
-        AND: [
-          { seed: args.seed },
-          { mode: args.mode },
-          { userId },
-        ],
-      } as any,
+    const existing = await prisma.wurpleDailyPlay.findFirst({
+      where: { seed: args.seed, mode: args.mode, userId },
     });
     if (existing) {
       return; // Never overwrite existing userId play
