@@ -6,7 +6,7 @@ export const MODE_CONFIG: Record<GameMode, ModeConfig> = {
     maxGuesses: 6,
     allowDuplicates: false,
     includeTiles: true,
-    includeDistance: false,
+    includeDistance: true,
     requireUniqueSolutionDigits: true,
   },
   challenge: {

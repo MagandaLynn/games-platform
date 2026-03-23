@@ -6,6 +6,7 @@ const MAX_LOOKBACK_DAYS = 365;
 
 type DailyPoint = {
   date: string;
+  hangmanInstanceId?: string | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -31,6 +32,7 @@ type RawPlay = {
   hintUsed: boolean;
   updatedAt: Date;
   instance: {
+    id: string;
     date: Date;
   };
 };
@@ -99,6 +101,7 @@ async function collectForProfile(
     include: {
       instance: {
         select: {
+          id: true,
           date: true,
         },
       },
@@ -123,9 +126,11 @@ async function collectForProfile(
     const wrongGuesses = attempted && play ? play.wrongGuesses : null;
     const hintUsed = Boolean(play?.hintUsed);
     const perfect = Boolean(won && wrongGuesses === 0 && !hintUsed);
+    const hangmanInstanceId = play?.instance.id ?? null;
 
     return {
       date,
+      hangmanInstanceId,
       attempted,
       completed,
       won,
@@ -185,6 +190,7 @@ async function collectLifetimeSummaryForProfile(profile: ProfileRef, to: Date) {
     include: {
       instance: {
         select: {
+          id: true,
           date: true,
         },
       },
@@ -210,6 +216,7 @@ async function collectLifetimeSummaryForProfile(profile: ProfileRef, to: Date) {
 
     return {
       date: toDateKey(play.instance.date),
+      hangmanInstanceId: play.instance.id,
       attempted,
       completed,
       won,

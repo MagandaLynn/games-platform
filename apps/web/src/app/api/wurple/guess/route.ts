@@ -34,6 +34,21 @@ function hasGuesses(value: string | null | undefined) {
   }
 }
 
+function guessArrayLength(value: string | null | undefined) {
+  if (!value) return 0;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string").length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function isUnknownGuessesJsonFieldError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("guessesJson") && (message.includes("Unknown field") || message.includes("Unknown argument"));
+}
+
 async function savePlaySnapshot(args: {
   seed: string;
   mode: "easy" | "challenge";
@@ -54,16 +69,47 @@ async function savePlaySnapshot(args: {
   if (userId) {
     const existing = await prisma.wurpleDailyPlay.findFirst({
       where: { seed: args.seed, mode: args.mode, userId },
-      select: { id: true, guessesJson: true },
     } as any);
     if (existing) {
-      if (args.guesses.length > 0 && !hasGuesses((existing as any).guessesJson)) {
-        await prisma.wurpleDailyPlay.update({
-          where: { id: existing.id },
-          data: { guessesJson },
-        } as any);
+      const existingStatus = (existing as any).status as string;
+      const existingGuessCount = typeof (existing as any).guessCount === "number" ? (existing as any).guessCount : 0;
+      const existingGuessArrayLen = guessArrayLength((existing as any).guessesJson);
+      const updateData: Record<string, unknown> = {};
+
+      if (existingStatus === "playing") {
+        if (args.status !== "playing") {
+          updateData.status = args.status;
+          updateData.won = args.status === "won";
+          updateData.completedAt = completedAt;
+        }
+        if (args.guessCount > existingGuessCount) {
+          updateData.guessCount = args.guessCount;
+          updateData.maxGuesses = args.maxGuesses;
+        }
       }
-      return; // Never overwrite existing userId play
+
+      if (args.guesses.length > existingGuessArrayLen || (args.guesses.length > 0 && !hasGuesses((existing as any).guessesJson))) {
+        updateData.guessesJson = guessesJson;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        try {
+          await prisma.wurpleDailyPlay.update({
+            where: { id: existing.id },
+            data: updateData,
+          } as any);
+        } catch (error) {
+          if (!isUnknownGuessesJsonFieldError(error)) throw error;
+          const { guessesJson: _ignored, ...fallbackData } = updateData;
+          if (Object.keys(fallbackData).length > 0) {
+            await prisma.wurpleDailyPlay.update({
+              where: { id: existing.id },
+              data: fallbackData,
+            } as any);
+          }
+        }
+      }
+      return;
     }
   }
 
@@ -74,44 +120,89 @@ async function savePlaySnapshot(args: {
       mode: args.mode,
       sessionId,
     },
-    select: { id: true, userId: true, guessesJson: true },
   } as any);
 
   if (existingSession) {
     // If this is a new userId login (upgrading session → user), update the session play to link userId
     const updateData: Record<string, unknown> = {};
+    const existingStatus = (existingSession as any).status as string;
+    const existingGuessCount = typeof (existingSession as any).guessCount === "number" ? (existingSession as any).guessCount : 0;
+    const existingGuessArrayLen = guessArrayLength((existingSession as any).guessesJson);
+
     if (userId && !existingSession.userId) {
       updateData.userId = userId;
     }
-    if (args.guesses.length > 0 && !hasGuesses((existingSession as any).guessesJson)) {
+
+    if (existingStatus === "playing") {
+      if (args.status !== "playing") {
+        updateData.status = args.status;
+        updateData.won = args.status === "won";
+        updateData.completedAt = completedAt;
+      }
+      if (args.guessCount > existingGuessCount) {
+        updateData.guessCount = args.guessCount;
+        updateData.maxGuesses = args.maxGuesses;
+      }
+    }
+
+    if (args.guesses.length > existingGuessArrayLen || (args.guesses.length > 0 && !hasGuesses((existingSession as any).guessesJson))) {
       updateData.guessesJson = guessesJson;
     }
 
     if (Object.keys(updateData).length > 0) {
-      await prisma.wurpleDailyPlay.update({
-        where: { id: existingSession.id },
-        data: updateData,
-      } as any);
+      try {
+        await prisma.wurpleDailyPlay.update({
+          where: { id: existingSession.id },
+          data: updateData,
+        } as any);
+      } catch (error) {
+        if (!isUnknownGuessesJsonFieldError(error)) throw error;
+        const { guessesJson: _ignored, ...fallbackData } = updateData;
+        if (Object.keys(fallbackData).length > 0) {
+          await prisma.wurpleDailyPlay.update({
+            where: { id: existingSession.id },
+            data: fallbackData,
+          } as any);
+        }
+      }
     }
     return; // Never overwrite existing play
   }
 
   // Only create if neither userId nor sessionId play exists
-  await prisma.wurpleDailyPlay.create({
-    data: {
-      seed: args.seed,
-      date,
-      mode: args.mode,
-      sessionId,
-      userId,
-      status: args.status,
-      guessCount: args.guessCount,
-      guessesJson,
-      maxGuesses: args.maxGuesses,
-      won: args.status === "won",
-      completedAt,
-    } as any,
-  });
+  try {
+    await prisma.wurpleDailyPlay.create({
+      data: {
+        seed: args.seed,
+        date,
+        mode: args.mode,
+        sessionId,
+        userId,
+        status: args.status,
+        guessCount: args.guessCount,
+        guessesJson,
+        maxGuesses: args.maxGuesses,
+        won: args.status === "won",
+        completedAt,
+      } as any,
+    });
+  } catch (error) {
+    if (!isUnknownGuessesJsonFieldError(error)) throw error;
+    await prisma.wurpleDailyPlay.create({
+      data: {
+        seed: args.seed,
+        date,
+        mode: args.mode,
+        sessionId,
+        userId,
+        status: args.status,
+        guessCount: args.guessCount,
+        maxGuesses: args.maxGuesses,
+        won: args.status === "won",
+        completedAt,
+      } as any,
+    });
+  }
 }
 
 function isMissingWurpleStatsTable(error: unknown) {
