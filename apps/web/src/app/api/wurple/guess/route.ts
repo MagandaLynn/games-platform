@@ -28,6 +28,7 @@ async function savePlaySnapshot(args: {
   seed: string;
   mode: "easy" | "challenge";
   guessCount: number;
+  guesses: string[];
   maxGuesses: number | null;
   status: "playing" | "won" | "lost";
 }) {
@@ -78,10 +79,11 @@ async function savePlaySnapshot(args: {
       userId,
       status: args.status,
       guessCount: args.guessCount,
+      guessesJson: JSON.stringify(args.guesses),
       maxGuesses: args.maxGuesses,
       won: args.status === "won",
       completedAt,
-    },
+    } as any,
   });
 }
 
@@ -146,6 +148,7 @@ export async function POST(req: Request) {
         seed,
         mode,
         guessCount: state.guesses.length,
+        guesses: state.guesses,
         maxGuesses: cfg.maxGuesses,
         status: internal.status,
       });

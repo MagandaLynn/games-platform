@@ -12,6 +12,7 @@ type ImportEntry = {
   mode: WurpleMode;
   status: WurpleStatus;
   guessCount: number;
+  guesses: string[];
   completedAt?: string | null;
 };
 
@@ -39,6 +40,7 @@ function toImportEntry(value: unknown): ImportEntry | null {
   const status = row.status;
   const guessCountRaw = row.guessCount;
   const completedAtRaw = row.completedAt;
+  const guessesRaw = row.guesses;
 
   if (!seed || !isMode(mode) || !isStatus(status)) return null;
   const date = seedToUtcDate(seed);
@@ -49,18 +51,23 @@ function toImportEntry(value: unknown): ImportEntry | null {
       ? Math.max(0, Math.floor(guessCountRaw))
       : 0;
 
+  const guesses = Array.isArray(guessesRaw)
+    ? guessesRaw.filter((value): value is string => typeof value === "string")
+    : [];
+
   return {
     seed,
     mode,
     status,
     guessCount,
+    guesses,
     completedAt: typeof completedAtRaw === "string" ? completedAtRaw : null,
   };
 }
 
 function rankEntry(entry: ImportEntry) {
   const statusWeight = entry.status === "won" ? 300 : entry.status === "lost" ? 200 : 100;
-  return statusWeight + Math.min(entry.guessCount, 99);
+  return statusWeight + Math.min(Math.max(entry.guessCount, entry.guesses.length), 99);
 }
 
 function chooseBest(current: ImportEntry | undefined, next: ImportEntry) {
@@ -121,6 +128,7 @@ export async function POST(req: Request) {
             userId,
             status: entry.status,
             guessCount: entry.guessCount,
+            guessesJson: JSON.stringify(entry.guesses),
             won: entry.status === "won",
             completedAt,
           },
@@ -132,10 +140,11 @@ export async function POST(req: Request) {
             userId,
             status: entry.status,
             guessCount: entry.guessCount,
+            guessesJson: JSON.stringify(entry.guesses),
             won: entry.status === "won",
             completedAt,
           },
-        });
+        } as any);
       })
     );
 

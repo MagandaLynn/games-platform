@@ -155,6 +155,7 @@ model WurpleDailyPlay {
   userId      String?
   status      String   @default("playing")
   guessCount  Int      @default(0)
+  guessesJson String   @default("[]")
   maxGuesses  Int?
   won         Boolean  @default(false)
   completedAt DateTime?

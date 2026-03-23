@@ -31,6 +31,7 @@ type BlockItem = {
 
 type CompareDay = {
   date: string;
+  wurpleGuesses?: string[] | null;
   importedOn?: string | null;
   semantleRawText?: string | null;
   semantlePuzzleNumber?: number | null;
@@ -89,6 +90,7 @@ type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge" | "semantle" | "wor
 
 type ChartDay = {
   date: string;
+  wurpleGuesses?: string[] | null;
   attempted: boolean;
   completed: boolean;
   won: boolean;
@@ -134,6 +136,7 @@ type TodayRow = {
 function emptyDay(date: string): CompareDay {
   return {
     date,
+    wurpleGuesses: null,
     importedOn: null,
     semantleRawText: null,
     semantlePuzzleNumber: null,
@@ -168,6 +171,7 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
 
       return {
         date,
+        wurpleGuesses: day.wurpleGuesses ?? null,
         attempted: day.attempted,
         completed: day.completed,
         won: day.won,
@@ -1076,6 +1080,7 @@ export default function SocialPage() {
       mode: "easy" | "challenge";
       status: "playing" | "won" | "lost";
       guessCount: number;
+      guesses: string[];
       completedAt: string | null;
     }> = [];
     const localGuessMap: Record<string, string[]> = {};
@@ -1115,6 +1120,7 @@ export default function SocialPage() {
           mode,
           status: parsed.status,
           guessCount,
+          guesses,
           completedAt: completionLookup.get(`${seed}:${mode}`) ?? null,
         });
       }
@@ -1974,7 +1980,14 @@ export default function SocialPage() {
             if (variant === "wurple") {
               const isMe = profileId === activeChart.compare?.me.profileId;
               const mode = activeChartTab === "wurpleChallenge" ? "challenge" : "easy";
-              const wurpleGuesses = isMe ? (localWurpleGuessMap[`${mode}:${day.date}`] ?? []) : [];
+              const remoteGuesses = Array.isArray(day.wurpleGuesses)
+                ? day.wurpleGuesses.filter((guess): guess is string => typeof guess === "string")
+                : [];
+              const wurpleGuesses = remoteGuesses.length > 0
+                ? remoteGuesses
+                : isMe
+                  ? (localWurpleGuessMap[`${mode}:${day.date}`] ?? [])
+                  : [];
 
               setSelectedDetailPoint({
                 title: `Wurple ${mode === "easy" ? "Easy" : "Challenge"} details`,

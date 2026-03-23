@@ -1,0 +1,2 @@
+ALTER TABLE "WurpleDailyPlay"
+ADD COLUMN IF NOT EXISTS "guessesJson" TEXT NOT NULL DEFAULT '[]';

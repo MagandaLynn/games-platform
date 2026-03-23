@@ -14,6 +14,7 @@ type DailyPoint = {
   lost: boolean;
   wrongGuesses: number | null;
   guessedCount: number;
+  wurpleGuesses?: string[];
   hintUsed: boolean;
   perfect: boolean;
 };
@@ -30,8 +31,21 @@ type RawPlay = {
   seed: string;
   status: string;
   guessCount: number;
+  guessesJson?: string | null;
   updatedAt: Date;
 };
+
+function parseGuessesJson(value: string | null | undefined) {
+  if (!value) return [] as string[];
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
 
 function parseMode(input: string | null): WurpleMode {
   return input === "challenge" ? "challenge" : "easy";
@@ -107,10 +121,11 @@ async function collectForProfile(
       seed: true,
       status: true,
       guessCount: true,
+      guessesJson: true,
       updatedAt: true,
-    },
+    } as any,
     orderBy: [{ seed: "asc" }, { updatedAt: "desc" }],
-  })) as RawPlay[];
+  })) as unknown as RawPlay[];
 
   const bestPlayByDay = new Map<string, RawPlay>();
 
@@ -126,6 +141,7 @@ async function collectForProfile(
     const lost = play?.status === "lost";
     const guessedCount = attempted && play ? play.guessCount : 0;
     const perfect = Boolean(won && guessedCount === 1);
+    const wurpleGuesses = play ? parseGuessesJson(play.guessesJson) : [];
 
     return {
       date,
@@ -135,6 +151,7 @@ async function collectForProfile(
       lost,
       wrongGuesses: null,
       guessedCount,
+      wurpleGuesses,
       hintUsed: false,
       perfect,
     };
