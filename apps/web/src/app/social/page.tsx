@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { games, TileStatus } from "@playseed/game-core";
 
 const PLAYER_COLORS = ["#60a5fa", "#f97316", "#a78bfa", "#34d399", "#facc15", "#f472b6", "#22d3ee"];
 const MAX_CHART_PLAYERS = PLAYER_COLORS.length;
@@ -8,6 +9,11 @@ const SEMANTLE_BASE_PUZZLE = 1513;
 const SEMANTLE_BASE_DATE_UTC = new Date(Date.UTC(2026, 2, 22));
 const WORDLE_BASE_PUZZLE = 1000;
 const WORDLE_BASE_DATE_UTC = new Date(Date.UTC(2024, 2, 15));
+const WURPLE_TILE_EMOJI: Record<TileStatus, string> = {
+  correct: "🟩",
+  present: "🟨",
+  absent: "⬛",
+};
 
 type FollowItem = {
   profileId: string;
@@ -378,6 +384,25 @@ function sanitizeWurpleGuesses(value: unknown): string[] {
   return value
     .map((item) => (typeof item === "string" ? item.trim().toUpperCase() : ""))
     .filter((item) => /^[0-9A-F]{6}$/.test(item));
+}
+
+function buildWurpleGuessBreakdown(seed: string, mode: "easy" | "challenge", guesses: string[]) {
+  if (!seed || guesses.length === 0) return [];
+
+  try {
+    const cfg = mode === "challenge" ? games.wurple.MODE_CONFIG.challenge : games.wurple.MODE_CONFIG.easy;
+    const state = games.wurple.createInitialState(seed, cfg);
+
+    return guesses
+      .map((guess) => {
+        const feedback = games.wurple.getGuessFeedback(state.solution, guess, cfg);
+        if (!feedback || !Array.isArray(feedback.tiles) || feedback.tiles.length === 0) return "";
+        return feedback.tiles.map((t) => WURPLE_TILE_EMOJI[t] ?? "⬛").join("");
+      })
+      .filter((row) => row.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 function WurpleColorSwatch({ hex }: { hex: string }) {
@@ -921,6 +946,17 @@ export default function SocialPage() {
   } | null>(null);
   const [localWurpleGuessMap, setLocalWurpleGuessMap] = useState<Record<string, string[]>>({});
   const [didImportLocalWurple, setDidImportLocalWurple] = useState(false);
+
+  const wurpleBreakdownRows = useMemo(() => {
+    if (!selectedDetailPoint || selectedDetailPoint.variant !== "wurple") return [];
+    if (!selectedDetailPoint.wurpleSeed || !selectedDetailPoint.wurpleMode) return [];
+
+    return buildWurpleGuessBreakdown(
+      selectedDetailPoint.wurpleSeed,
+      selectedDetailPoint.wurpleMode,
+      selectedDetailPoint.wurpleGuesses ?? []
+    );
+  }, [selectedDetailPoint]);
 
   const showStatus = (message: string, tone: "success" | "error" | "info" = "success") => {
     setStatus({ message, tone });
@@ -2004,7 +2040,7 @@ export default function SocialPage() {
           onClick={() => setSelectedDetailPoint(null)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-white/10 bg-bg p-4 shadow-2xl"
+            className="w-full max-w-lg rounded-xl border border-slate-300/80 bg-bg-panel p-4 shadow-2xl dark:border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -2021,12 +2057,21 @@ export default function SocialPage() {
               </button>
             </div>
 
-            <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 text-xs leading-5 text-white">
+            <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-300/70 bg-slate-100 p-3 text-xs leading-5 text-text dark:border-white/10 dark:bg-slate-900/95 dark:text-white">
               {selectedDetailPoint.detailText}
             </pre>
 
             {selectedDetailPoint.variant === "wurple" && (
-              <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="mt-3 rounded-lg border border-slate-300/70 bg-slate-100 p-3 dark:border-white/10 dark:bg-slate-900/95">
+                {wurpleBreakdownRows.length > 0 && (
+                  <div className="mb-3">
+                    <div className="mb-2 text-[11px] uppercase tracking-wide text-text-muted">Guess breakdown</div>
+                    <pre className="whitespace-pre-wrap rounded-lg border border-slate-300/70 bg-slate-50 p-2 text-sm leading-5 text-text dark:border-white/10 dark:bg-black/20 dark:text-white">
+                      {wurpleBreakdownRows.join("\n")}
+                    </pre>
+                  </div>
+                )}
+
                 {selectedDetailPoint.wurpleSeed && selectedDetailPoint.wurpleMode && (
                   <div className="mb-3">
                     <div className="mb-2 text-[11px] uppercase tracking-wide text-text-muted">Answer</div>
@@ -2043,9 +2088,8 @@ export default function SocialPage() {
                 {selectedDetailPoint.wurpleGuesses && selectedDetailPoint.wurpleGuesses.length > 0 ? (
                   <div className="flex flex-wrap gap-2" onContextMenu={(e) => e.preventDefault()}>
                     {selectedDetailPoint.wurpleGuesses.map((hex, index) => (
-                      <div key={`${hex}-${index}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-2 py-1">
+                      <div key={`${hex}-${index}`} className="inline-flex items-center rounded-full border border-slate-300/70 bg-slate-50 p-1 dark:border-white/10 dark:bg-black/20">
                         <WurpleColorSwatch hex={hex} />
-                        <span className="text-[11px] text-white/90">Guess {index + 1}</span>
                       </div>
                     ))}
                   </div>

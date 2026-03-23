@@ -102,7 +102,31 @@ export async function resolveOrCreateProfile() {
 
   const bySession = await prisma.socialProfile.findUnique({ where: { sessionId } });
   if (bySession) {
-    if (!bySession.userId && userId) {
+    if (userId) {
+      if (bySession.userId === userId) {
+        await backfillUserOwnership(sessionId, userId).catch(() => {
+          // Keep profile resolution resilient if backfill partially fails.
+        });
+        return bySession;
+      }
+
+      const byUser = await prisma.socialProfile.findUnique({ where: { userId } });
+      if (byUser && byUser.id !== bySession.id) {
+        const merged = await prisma.$transaction(async (tx) => {
+          await tx.socialProfile.delete({ where: { id: bySession.id } });
+          return tx.socialProfile.update({
+            where: { id: byUser.id },
+            data: { sessionId },
+          });
+        });
+
+        await backfillUserOwnership(sessionId, userId).catch(() => {
+          // Keep profile resolution resilient if backfill partially fails.
+        });
+
+        return merged;
+      }
+
       const updated = await prisma.socialProfile.update({
         where: { id: bySession.id },
         data: { userId },
@@ -113,12 +137,6 @@ export async function resolveOrCreateProfile() {
       });
 
       return updated;
-    }
-
-    if (userId) {
-      await backfillUserOwnership(sessionId, userId).catch(() => {
-        // Keep profile resolution resilient if backfill partially fails.
-      });
     }
 
     return bySession;
