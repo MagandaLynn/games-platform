@@ -544,7 +544,9 @@ function MetricLineChart({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="relative">
+        <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-text-muted/30">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[var(--color-bg-panel)] to-transparent z-10" />
         <svg viewBox={`0 0 ${width} ${height}`} className="h-[320px] w-full min-w-[720px]">
           {Array.from({ length: Math.floor(yMax / yTickStep) + 1 }, (_, index) => index * yTickStep).map((tick) => {
             const y = yFor(tick);
@@ -635,6 +637,7 @@ function MetricLineChart({
             );
           })}
         </svg>
+        </div>
       </div>
     </div>
   );

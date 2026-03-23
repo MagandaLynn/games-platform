@@ -84,13 +84,11 @@ export async function POST(req: Request) {
 
     // Check if userId-based play already exists
     if (actor.userId) {
-      const existing = await prisma.semantleDailyPlay.findUnique({
+      const existing = await prisma.semantleDailyPlay.findFirst({
         where: {
-          puzzle_user: {
-            puzzleNumber: parsed.puzzleNumber,
-            userId: actor.userId,
-          },
-        } as any,
+          puzzleNumber: parsed.puzzleNumber,
+          userId: actor.userId,
+        },
       });
       if (existing) {
         return Response.json({
