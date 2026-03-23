@@ -204,6 +204,109 @@ function formatShortDate(date: string) {
   return `${Number(month)}/${Number(day)}`;
 }
 
+function getEasternDateKey(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+function getLocalDateKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+    const value = parts.find((part) => part.type === type)?.value ?? "0";
+    return Number.parseInt(value, 10);
+  };
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
+}
+
+function getTimeZoneOffsetMs(timeZone: string, date: Date) {
+  const parts = getTimeZoneParts(date, timeZone);
+  const utcTime = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return utcTime - date.getTime();
+}
+
+function zonedDateTimeToUtc(dateKey: string, hour: number, minute: number, timeZone: string) {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) return null;
+
+  const localAsUtc = Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), hour, minute, 0);
+  const firstGuess = new Date(localAsUtc);
+  const firstOffset = getTimeZoneOffsetMs(timeZone, firstGuess);
+  const secondGuess = new Date(localAsUtc - firstOffset);
+  const secondOffset = getTimeZoneOffsetMs(timeZone, secondGuess);
+
+  return new Date(localAsUtc - secondOffset);
+}
+
+function formatLocalResetTime(dateKey: string, sourceTimeZone: string, hour: number, minute: number) {
+  const resetAt = zonedDateTimeToUtc(dateKey, hour, minute, sourceTimeZone);
+  if (!resetAt) return "Unknown";
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(resetAt);
+}
+
+function getLocalTimeZoneName(now = new Date()) {
+  const part = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    timeZoneName: "short",
+  })
+    .formatToParts(now)
+    .find((value) => value.type === "timeZoneName")?.value;
+
+  return part ?? "local time";
+}
+
+function formatWeekdayShort(date: string) {
+  const parsed = parseDateKey(date);
+  if (!parsed) return "";
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatSocialDateOptionLabel(date: string, currentEasternDate: string) {
+  const shortDate = formatShortDate(date);
+  if (date === currentEasternDate) return `Today · ${shortDate}`;
+
+  const weekday = formatWeekdayShort(date);
+  return weekday ? `${weekday} · ${shortDate}` : shortDate;
+}
+
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
@@ -265,53 +368,26 @@ function getChartTickStep(maxValue: number) {
 }
 
 function getSemantleCurrentPuzzleKey(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-
-  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
-    const value = parts.find((p) => p.type === type)?.value ?? "0";
-    return Number.parseInt(value, 10);
-  };
-
-  const year = getPart("year");
-  const month = getPart("month");
-  const day = getPart("day");
-  const hour = getPart("hour");
-
-  const semantleDate = new Date(Date.UTC(year, month - 1, day));
-  if (hour >= 20) {
-    semantleDate.setUTCDate(semantleDate.getUTCDate() + 1);
-  }
-
-  const diffDays = Math.floor((semantleDate.getTime() - SEMANTLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+  const diffDays = Math.floor((parseDateKey(getEasternDateKey(now))!.getTime() - SEMANTLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
   return String(SEMANTLE_BASE_PUZZLE + diffDays);
 }
 
 function getWordleCurrentPuzzleKey(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
+  const diffDays = Math.floor((parseDateKey(getEasternDateKey(now))!.getTime() - WORDLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+  return String(WORDLE_BASE_PUZZLE + diffDays);
+}
 
-  const getPart = (type: Intl.DateTimeFormatPartTypes) => {
-    const value = parts.find((p) => p.type === type)?.value ?? "0";
-    return Number.parseInt(value, 10);
-  };
+function getSemantlePuzzleKeyForDate(date: string) {
+  const parsed = parseDateKey(date);
+  if (!parsed) return "";
+  const diffDays = Math.floor((parsed.getTime() - SEMANTLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+  return String(SEMANTLE_BASE_PUZZLE + diffDays);
+}
 
-  const year = getPart("year");
-  const month = getPart("month");
-  const day = getPart("day");
-
-  const wordleDate = new Date(Date.UTC(year, month - 1, day));
-  const diffDays = Math.floor((wordleDate.getTime() - WORDLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
+function getWordlePuzzleKeyForDate(date: string) {
+  const parsed = parseDateKey(date);
+  if (!parsed) return "";
+  const diffDays = Math.floor((parsed.getTime() - WORDLE_BASE_DATE_UTC.getTime()) / (24 * 60 * 60 * 1000));
   return String(WORDLE_BASE_PUZZLE + diffDays);
 }
 
@@ -936,6 +1012,8 @@ export default function SocialPage() {
   const [wordleText, setWordleText] = useState("");
   const [isImportingWordle, setIsImportingWordle] = useState(false);
   const [range, setRange] = useState<"30d" | "90d" | "all">("30d");
+  const [selectedSocialDate, setSelectedSocialDate] = useState(() => getEasternDateKey());
+  const [showResetInfo, setShowResetInfo] = useState(false);
   const [chartFromDate, setChartFromDate] = useState("");
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>("hangman");
   const [selectedDetailPoint, setSelectedDetailPoint] = useState<{
@@ -1240,10 +1318,34 @@ export default function SocialPage() {
   const wurpleChallengePlayers = useMemo(() => buildPlayers(wurpleChallengeCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [wurpleChallengeCompare]);
   const semantlePlayers = useMemo(() => buildPlayers(semantleCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [semantleCompare]);
   const wordlePlayers = useMemo(() => buildPlayers(wordleCompare, "guessedCount").slice(0, MAX_CHART_PLAYERS), [wordleCompare]);
-  const semantleTodayPuzzleKey = useMemo(() => getSemantleCurrentPuzzleKey(), []);
-  const wordleTodayPuzzleKey = useMemo(() => getWordleCurrentPuzzleKey(), []);
+  const currentEasternDate = useMemo(() => getEasternDateKey(), []);
+  const localTimeZoneName = useMemo(() => getLocalTimeZoneName(), []);
+  const socialDateOptions = useMemo(() => {
+    const available = new Set<string>();
 
-  const todayKey = useMemo(() => toDateKey(new Date()), []);
+    for (const compare of [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare]) {
+      for (const date of compare?.axisDates ?? []) {
+        if (parseDateKey(date)) available.add(date);
+      }
+    }
+
+    if (parseDateKey(currentEasternDate)) available.add(currentEasternDate);
+
+    return Array.from(available).sort((a, b) => b.localeCompare(a));
+  }, [currentEasternDate, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare]);
+  const selectedSemantlePuzzleKey = useMemo(() => getSemantlePuzzleKeyForDate(selectedSocialDate), [selectedSocialDate]);
+  const selectedWordlePuzzleKey = useMemo(() => getWordlePuzzleKeyForDate(selectedSocialDate), [selectedSocialDate]);
+  const hangmanResetLabel = useMemo(() => formatLocalResetTime(selectedSocialDate, "UTC", 0, 0), [selectedSocialDate]);
+  const wurpleResetLabel = useMemo(() => formatLocalResetTime(selectedSocialDate, "America/New_York", 0, 0), [selectedSocialDate]);
+  const semantleResetLabel = useMemo(() => formatLocalResetTime(selectedSocialDate, "America/New_York", 20, 0), [selectedSocialDate]);
+  const wordleResetLabel = useMemo(() => formatLocalResetTime(selectedSocialDate, "America/New_York", 0, 0), [selectedSocialDate]);
+
+  useEffect(() => {
+    if (socialDateOptions.length === 0) return;
+    if (!socialDateOptions.includes(selectedSocialDate)) {
+      setSelectedSocialDate(socialDateOptions.includes(currentEasternDate) ? currentEasternDate : socialDateOptions[0]);
+    }
+  }, [currentEasternDate, selectedSocialDate, socialDateOptions]);
 
   const chartRangeLabel = useMemo(() => {
     if (chartFromDate) return `${chartFromDate} → ${addDaysToDateKey(chartFromDate, 29)}`;
@@ -1253,13 +1355,13 @@ export default function SocialPage() {
   const followedTodayRows = useMemo(() => {
     return follows.map((follow) => ({
       follow,
-      hangmanDay: findFollowDay(hangmanCompare, follow.profileId, todayKey),
-      wurpleEasyDay: findFollowDay(wurpleEasyCompare, follow.profileId, todayKey),
-      wurpleChallengeDay: findFollowDay(wurpleChallengeCompare, follow.profileId, todayKey),
-      semantleDay: findFollowDay(semantleCompare, follow.profileId, semantleTodayPuzzleKey),
-      wordleDay: findFollowDay(wordleCompare, follow.profileId, wordleTodayPuzzleKey),
+      hangmanDay: findFollowDay(hangmanCompare, follow.profileId, selectedSocialDate),
+      wurpleEasyDay: findFollowDay(wurpleEasyCompare, follow.profileId, selectedSocialDate),
+      wurpleChallengeDay: findFollowDay(wurpleChallengeCompare, follow.profileId, selectedSocialDate),
+      semantleDay: findFollowDay(semantleCompare, follow.profileId, selectedSemantlePuzzleKey),
+      wordleDay: findFollowDay(wordleCompare, follow.profileId, selectedWordlePuzzleKey),
     }));
-  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, todayKey, semantleTodayPuzzleKey, wordleTodayPuzzleKey]);
+  }, [follows, hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, selectedSocialDate, selectedSemantlePuzzleKey, selectedWordlePuzzleKey]);
 
   const activeChart = useMemo(() => {
     if (activeChartTab === "hangman") {
@@ -1359,13 +1461,13 @@ export default function SocialPage() {
       label: profileDisplayName || `@${profileHandle || "you"}`,
       handle: profileHandle,
       isMe: true,
-      hangmanDay: hangmanCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
-      wurpleEasyDay: wurpleEasyCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
-      wurpleChallengeDay: wurpleChallengeCompare?.me.daily.find((d) => d.date === todayKey) ?? null,
-      semantleDay: semantleCompare?.me.daily.find((d) => d.date === semantleTodayPuzzleKey) ?? null,
-      wordleDay: wordleCompare?.me.daily.find((d) => d.date === wordleTodayPuzzleKey) ?? null,
+      hangmanDay: hangmanCompare?.me.daily.find((d) => d.date === selectedSocialDate) ?? null,
+      wurpleEasyDay: wurpleEasyCompare?.me.daily.find((d) => d.date === selectedSocialDate) ?? null,
+      wurpleChallengeDay: wurpleChallengeCompare?.me.daily.find((d) => d.date === selectedSocialDate) ?? null,
+      semantleDay: semantleCompare?.me.daily.find((d) => d.date === selectedSemantlePuzzleKey || d.importedOn === selectedSocialDate) ?? null,
+      wordleDay: wordleCompare?.me.daily.find((d) => d.date === selectedWordlePuzzleKey || d.importedOn === selectedSocialDate) ?? null,
     }),
-    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, todayKey, semantleTodayPuzzleKey, wordleTodayPuzzleKey, profileHandle, profileDisplayName]
+    [hangmanCompare, wurpleEasyCompare, wurpleChallengeCompare, semantleCompare, wordleCompare, selectedSocialDate, selectedSemantlePuzzleKey, selectedWordlePuzzleKey, profileHandle, profileDisplayName]
   );
 
   const todayGridRows = useMemo<TodayRow[]>(
@@ -1707,10 +1809,59 @@ export default function SocialPage() {
       <div className="text-sm font-bold uppercase tracking-[0.16em] text-text dark:text-white/85">Activity</div>
 
       <section className="rounded-xl border border-slate-300/70 bg-slate-50/80 p-4 md:p-5 space-y-3 dark:border-white/10 dark:bg-white/5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Today</h2>
-          <div className="text-xs text-text-muted">{todayKey}</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">Daily snapshot</h2>
+            <p className="text-[11px] text-text-muted">Uses Eastern Time for date selection.</p>
+          </div>
+
+          <label className="flex items-center gap-2 text-[11px] text-text-muted">
+            <span>Date</span>
+            <select
+              value={selectedSocialDate}
+              onChange={(e) => setSelectedSocialDate(e.target.value)}
+              className="rounded border border-slate-300 bg-bg px-2 py-1 text-xs text-text dark:border-white/10"
+            >
+              {socialDateOptions.map((date) => (
+                <option key={date} value={date}>
+                  {formatSocialDateOptionLabel(date, currentEasternDate)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowResetInfo((current) => !current)}
+              aria-expanded={showResetInfo}
+              aria-label="Show game reset times"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-bold text-text-muted transition hover:bg-slate-100 hover:text-text dark:border-white/15 dark:hover:bg-white/10"
+            >
+              ?
+            </button>
+          </label>
         </div>
+
+        {showResetInfo ? (
+          <div className="rounded-lg border border-slate-300/70 bg-slate-100/70 p-3 text-xs text-text-muted dark:border-white/10 dark:bg-black/10">
+            <div className="mb-2 font-semibold text-text">Game reset times in {localTimeZoneName}</div>
+            <ul className="space-y-1.5">
+              <li>
+                <span className="font-medium text-text">Hangman:</span> {hangmanResetLabel}
+              </li>
+              <li>
+                <span className="font-medium text-text">Wurple:</span> {wurpleResetLabel}
+              </li>
+              <li>
+                <span className="font-medium text-text">Semantle:</span> {semantleResetLabel}
+              </li>
+              <li>
+                <span className="font-medium text-text">Wordle:</span> {wordleResetLabel}
+              </li>
+            </ul>
+            <p className="mt-2 text-[11px] text-text-muted">
+              These reset times are not all the same, so late-night results can fall under different game days.
+            </p>
+          </div>
+        ) : null}
 
         <TodayGrid rows={todayGridRows} />
 
