@@ -38,23 +38,45 @@ async function savePlaySnapshot(args: {
   const { userId } = await auth();
   const completedAt = args.status === "playing" ? null : new Date();
 
-  await prisma.wurpleDailyPlay.upsert({
+  // For logged-in users, check if a userId-based play already exists
+  if (userId) {
+    const existing = await prisma.wurpleDailyPlay.findUnique({
+      where: {
+        AND: [
+          { seed: args.seed },
+          { mode: args.mode },
+          { userId },
+        ],
+      } as any,
+    });
+    if (existing) {
+      return; // Never overwrite existing userId play
+    }
+  }
+
+  // Check if a sessionId-based play already exists
+  const existingSession = await prisma.wurpleDailyPlay.findFirst({
     where: {
-      seed_mode_session: {
-        seed: args.seed,
-        mode: args.mode,
-        sessionId,
-      },
+      seed: args.seed,
+      mode: args.mode,
+      sessionId,
     },
-    update: {
-      userId,
-      status: args.status,
-      guessCount: args.guessCount,
-      maxGuesses: args.maxGuesses,
-      won: args.status === "won",
-      completedAt,
-    },
-    create: {
+  });
+
+  if (existingSession) {
+    // If this is a new userId login (upgrading session → user), update the session play to link userId
+    if (userId && !existingSession.userId) {
+      await prisma.wurpleDailyPlay.update({
+        where: { id: existingSession.id },
+        data: { userId },
+      });
+    }
+    return; // Never overwrite existing play
+  }
+
+  // Only create if neither userId nor sessionId play exists
+  await prisma.wurpleDailyPlay.create({
+    data: {
       seed: args.seed,
       date,
       mode: args.mode,

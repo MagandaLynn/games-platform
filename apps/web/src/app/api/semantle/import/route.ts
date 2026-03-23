@@ -82,61 +82,61 @@ export async function POST(req: Request) {
 
     await ensureSemantleTable();
 
-    await prisma.$executeRaw`
-      INSERT INTO "SemantleDailyPlay" (
-        "id",
-        "puzzleNumber",
-        "solved",
-        "guessCount",
-        "topGuessNumber",
-        "topScore",
-        "hintsUsed",
-        "rawText",
-        "sessionId",
-        "userId",
-        "importedAt",
-        "updatedAt"
-      )
-      VALUES (
-        ${crypto.randomUUID()},
-        ${parsed.puzzleNumber},
-        ${parsed.solved},
-        ${parsed.guessCount},
-        ${parsed.topGuessNumber},
-        ${parsed.topScore},
-        ${parsed.hintsUsed},
-        ${text.trim()},
-        ${actor.sessionId},
-        ${actor.userId},
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT ("puzzleNumber", "sessionId")
-      DO UPDATE SET
-        "solved" = "SemantleDailyPlay"."solved" OR EXCLUDED."solved",
-        "guessCount" = CASE
-          WHEN EXCLUDED."guessCount" IS NULL THEN "SemantleDailyPlay"."guessCount"
-          WHEN "SemantleDailyPlay"."guessCount" IS NULL THEN EXCLUDED."guessCount"
-          ELSE LEAST("SemantleDailyPlay"."guessCount", EXCLUDED."guessCount")
-        END,
-        "topGuessNumber" = CASE
-          WHEN EXCLUDED."topGuessNumber" IS NULL THEN "SemantleDailyPlay"."topGuessNumber"
-          WHEN "SemantleDailyPlay"."topGuessNumber" IS NULL THEN EXCLUDED."topGuessNumber"
-          ELSE LEAST("SemantleDailyPlay"."topGuessNumber", EXCLUDED."topGuessNumber")
-        END,
-        "topScore" = CASE
-          WHEN EXCLUDED."topScore" IS NULL THEN "SemantleDailyPlay"."topScore"
-          WHEN "SemantleDailyPlay"."topScore" IS NULL THEN EXCLUDED."topScore"
-          ELSE GREATEST("SemantleDailyPlay"."topScore", EXCLUDED."topScore")
-        END,
-        "hintsUsed" = CASE
-          WHEN EXCLUDED."hintsUsed" IS NULL THEN "SemantleDailyPlay"."hintsUsed"
-          WHEN "SemantleDailyPlay"."hintsUsed" IS NULL THEN EXCLUDED."hintsUsed"
-          ELSE LEAST("SemantleDailyPlay"."hintsUsed", EXCLUDED."hintsUsed")
-        END,
-        "rawText" = EXCLUDED."rawText",
-        "updatedAt" = NOW()
-    `;
+    // Check if userId-based play already exists
+    if (actor.userId) {
+      const existing = await prisma.semantleDailyPlay.findUnique({
+        where: {
+          puzzle_user: {
+            puzzleNumber: parsed.puzzleNumber,
+            userId: actor.userId,
+          },
+        } as any,
+      });
+      if (existing) {
+        return Response.json({
+          ok: false,
+          parsed,
+          message: `You've already imported Semantle #${parsed.puzzleNumber}`,
+        });
+      }
+    }
+
+    // Check if sessionId-based play exists and link it if upgrading to userId
+    const existingSession = await prisma.semantleDailyPlay.findFirst({
+      where: {
+        puzzleNumber: parsed.puzzleNumber,
+        sessionId: actor.sessionId,
+      },
+    });
+
+    if (existingSession) {
+      if (actor.userId && !existingSession.userId) {
+        await prisma.semantleDailyPlay.update({
+          where: { id: existingSession.id },
+          data: { userId: actor.userId },
+        });
+      }
+      return Response.json({
+        ok: false,
+        parsed,
+        message: `You've already imported Semantle #${parsed.puzzleNumber}`,
+      });
+    }
+
+    // Create new play
+    await prisma.semantleDailyPlay.create({
+      data: {
+        puzzleNumber: parsed.puzzleNumber,
+        solved: parsed.solved,
+        guessCount: parsed.guessCount,
+        topGuessNumber: parsed.topGuessNumber,
+        topScore: parsed.topScore,
+        hintsUsed: parsed.hintsUsed,
+        rawText: text.trim(),
+        sessionId: actor.sessionId,
+        userId: actor.userId,
+      },
+    });
 
     return Response.json({
       ok: true,

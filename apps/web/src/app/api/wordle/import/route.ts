@@ -64,6 +64,7 @@ async function ensureWordleTable() {
       "importedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "WordleDailyPlay_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "WordleDailyPlay_puzzle_user_key" UNIQUE ("puzzleNumber", "userId"),
       CONSTRAINT "WordleDailyPlay_puzzle_session_key" UNIQUE ("puzzleNumber", "sessionId")
     )
   `);
@@ -91,6 +92,49 @@ export async function POST(req: Request) {
 
     await ensureWordleTable();
 
+    // Check if userId-based play already exists
+    if (actor.userId) {
+      const existing = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "WordleDailyPlay"
+        WHERE "puzzleNumber" = ${parsed.puzzleNumber}
+          AND "userId" = ${actor.userId}
+        LIMIT 1
+      `;
+      if (existing.length > 0) {
+        return Response.json({
+          ok: false,
+          parsed,
+          message: `You've already imported Wordle #${parsed.puzzleNumber}`,
+        });
+      }
+    }
+
+    // Check if sessionId-based play exists and link it if upgrading to userId
+    const existingSession = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "WordleDailyPlay"
+      WHERE "puzzleNumber" = ${parsed.puzzleNumber}
+        AND "sessionId" = ${actor.sessionId}
+      LIMIT 1
+    `;
+
+    if (existingSession.length > 0) {
+      if (actor.userId) {
+        await prisma.$executeRaw`
+          UPDATE "WordleDailyPlay"
+          SET "userId" = ${actor.userId}
+          WHERE "puzzleNumber" = ${parsed.puzzleNumber}
+            AND "sessionId" = ${actor.sessionId}
+            AND "userId" IS NULL
+        `;
+      }
+      return Response.json({
+        ok: false,
+        parsed,
+        message: `You've already imported Wordle #${parsed.puzzleNumber}`,
+      });
+    }
+
+    // Create new play
     await prisma.$executeRaw`
       INSERT INTO "WordleDailyPlay" (
         "id",
@@ -118,18 +162,6 @@ export async function POST(req: Request) {
         NOW(),
         NOW()
       )
-      ON CONFLICT ("puzzleNumber", "sessionId")
-      DO UPDATE SET
-        "solved" = "WordleDailyPlay"."solved" OR EXCLUDED."solved",
-        "attempts" = CASE
-          WHEN EXCLUDED."attempts" IS NULL THEN "WordleDailyPlay"."attempts"
-          WHEN "WordleDailyPlay"."attempts" IS NULL THEN EXCLUDED."attempts"
-          ELSE LEAST("WordleDailyPlay"."attempts", EXCLUDED."attempts")
-        END,
-        "maxGuesses" = GREATEST("WordleDailyPlay"."maxGuesses", EXCLUDED."maxGuesses"),
-        "rawText" = EXCLUDED."rawText",
-        "gridText" = EXCLUDED."gridText",
-        "updatedAt" = NOW()
     `;
 
     return Response.json({
