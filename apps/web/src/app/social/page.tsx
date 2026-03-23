@@ -31,6 +31,7 @@ type BlockItem = {
 
 type CompareDay = {
   date: string;
+  hangmanInstanceId?: string | null;
   wurpleGuesses?: string[] | null;
   importedOn?: string | null;
   semantleRawText?: string | null;
@@ -90,6 +91,7 @@ type ChartTab = "hangman" | "wurpleEasy" | "wurpleChallenge" | "semantle" | "wor
 
 type ChartDay = {
   date: string;
+  hangmanInstanceId?: string | null;
   wurpleGuesses?: string[] | null;
   attempted: boolean;
   completed: boolean;
@@ -136,6 +138,7 @@ type TodayRow = {
 function emptyDay(date: string): CompareDay {
   return {
     date,
+    hangmanInstanceId: null,
     wurpleGuesses: null,
     importedOn: null,
     semantleRawText: null,
@@ -171,6 +174,7 @@ function buildPlayers(compare: CompareResponse | null, metric: ChartMetric): Cha
 
       return {
         date,
+        hangmanInstanceId: day.hangmanInstanceId ?? null,
         wurpleGuesses: day.wurpleGuesses ?? null,
         attempted: day.attempted,
         completed: day.completed,
@@ -405,6 +409,41 @@ function formatWordlePuzzleTick(value: string) {
   const puzzle = Number.parseInt(value, 10);
   if (!Number.isFinite(puzzle)) return value;
   return String(puzzle);
+}
+
+function getPlayLinkForPoint(variant: GameKind, day: ChartDay, activeChartTab: ChartTab) {
+  if (variant === "hangman") {
+    if (day.hangmanInstanceId) {
+      return { href: `/hangman/i/${day.hangmanInstanceId}`, label: "Play this Hangman" };
+    }
+    return { href: "/hangman/daily", label: "Open Hangman" };
+  }
+
+  if (variant === "wurple") {
+    const mode = activeChartTab === "wurpleChallenge" ? "challenge" : "easy";
+    return {
+      href: `/wurple?seed=${encodeURIComponent(day.date)}&mode=${mode}`,
+      label: `Play this Wurple (${mode === "easy" ? "Easy" : "Challenge"})`,
+    };
+  }
+
+  if (variant === "semantle") {
+    const puzzle = day.semantlePuzzleNumber ?? Number.parseInt(day.date, 10);
+    if (Number.isFinite(puzzle) && puzzle > 0) {
+      return {
+        href: `https://semantle.com/archive/game?num=${puzzle}`,
+        label: "Play this Semantle",
+      };
+    }
+
+    return { href: "https://semantle.com", label: "Open Semantle" };
+  }
+
+  if (variant === "wordle") {
+    return { href: "https://www.nytimes.com/games/wordle/index.html", label: "Open Wordle" };
+  }
+
+  return null;
 }
 
 function formatSemantleDetailText(day: ChartDay) {
@@ -1025,6 +1064,9 @@ export default function SocialPage() {
     playerLabel: string;
     detailText: string;
     variant: GameKind;
+    playHref?: string;
+    playLabel?: string;
+    playExternal?: boolean;
     wurpleGuesses?: string[];
     wurpleSeed?: string;
     wurpleMode?: "easy" | "challenge";
@@ -1957,12 +1999,17 @@ export default function SocialPage() {
           xTickFormatter={activeChart.xTickFormatter}
           framed={false}
           onPointSelect={({ playerLabel, day, variant, profileId }) => {
+            const playLink = getPlayLinkForPoint(variant, day, activeChartTab);
+
             if (variant === "semantle") {
               setSelectedDetailPoint({
                 title: "Semantle result details",
                 playerLabel,
                 detailText: formatSemantleDetailText(day),
                 variant,
+                playHref: playLink?.href,
+                playLabel: playLink?.label,
+                playExternal: playLink ? playLink.href.startsWith("http") : false,
               });
               return;
             }
@@ -1973,6 +2020,9 @@ export default function SocialPage() {
                 playerLabel,
                 detailText: formatHangmanDetailText(day),
                 variant,
+                playHref: playLink?.href,
+                playLabel: playLink?.label,
+                playExternal: playLink ? playLink.href.startsWith("http") : false,
               });
               return;
             }
@@ -1998,6 +2048,9 @@ export default function SocialPage() {
                   `🔢 Guesses: ${day.guessedCount}`,
                 ].join("\n"),
                 variant,
+                playHref: playLink?.href,
+                playLabel: playLink?.label,
+                playExternal: playLink ? playLink.href.startsWith("http") : false,
                 wurpleGuesses,
                 wurpleSeed: day.date,
                 wurpleMode: mode,
@@ -2011,6 +2064,9 @@ export default function SocialPage() {
                 playerLabel,
                 detailText: formatWordleDetailText(day),
                 variant,
+                playHref: playLink?.href,
+                playLabel: playLink?.label,
+                playExternal: playLink ? playLink.href.startsWith("http") : false,
               });
             }
           }}
@@ -2215,13 +2271,26 @@ export default function SocialPage() {
                 <h3 className="text-sm font-semibold text-white">{selectedDetailPoint.title}</h3>
                 <p className="mt-1 text-xs text-text-muted">{selectedDetailPoint.playerLabel}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDetailPoint(null)}
-                className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted transition hover:bg-bg-soft hover:text-text"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                {selectedDetailPoint.playHref && selectedDetailPoint.playLabel ? (
+                  <a
+                    href={selectedDetailPoint.playHref}
+                    target={selectedDetailPoint.playExternal ? "_blank" : undefined}
+                    rel={selectedDetailPoint.playExternal ? "noreferrer" : undefined}
+                    className="rounded border border-link/40 bg-link/10 px-2.5 py-1 text-xs font-semibold text-link transition hover:bg-link/15"
+                  >
+                    {selectedDetailPoint.playLabel}
+                  </a>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailPoint(null)}
+                  className="rounded border border-white/15 px-2 py-1 text-xs text-text-muted transition hover:bg-bg-soft hover:text-text"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-300/70 bg-slate-100 p-3 text-xs leading-5 text-text dark:border-white/10 dark:bg-slate-900/95 dark:text-white">

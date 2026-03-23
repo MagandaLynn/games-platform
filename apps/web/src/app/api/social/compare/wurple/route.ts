@@ -47,6 +47,11 @@ function parseGuessesJson(value: string | null | undefined) {
   }
 }
 
+function isUnknownGuessesJsonFieldError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("guessesJson") && (message.includes("Unknown field") || message.includes("Unknown argument"));
+}
+
 function parseMode(input: string | null): WurpleMode {
   return input === "challenge" ? "challenge" : "easy";
 }
@@ -111,21 +116,40 @@ async function collectForProfile(
   to: Date,
   mode: WurpleMode
 ) {
-  const plays = (await prisma.wurpleDailyPlay.findMany({
-    where: {
-      mode,
-      date: { gte: from, lte: to },
-      OR: [{ sessionId: profile.sessionId }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
-    },
-    select: {
-      seed: true,
-      status: true,
-      guessCount: true,
-      guessesJson: true,
-      updatedAt: true,
-    } as any,
-    orderBy: [{ seed: "asc" }, { updatedAt: "desc" }],
-  })) as unknown as RawPlay[];
+  let plays: RawPlay[] = [];
+  try {
+    plays = (await prisma.wurpleDailyPlay.findMany({
+      where: {
+        mode,
+        date: { gte: from, lte: to },
+        OR: [{ sessionId: profile.sessionId }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
+      },
+      select: {
+        seed: true,
+        status: true,
+        guessCount: true,
+        guessesJson: true,
+        updatedAt: true,
+      } as any,
+      orderBy: [{ seed: "asc" }, { updatedAt: "desc" }],
+    })) as unknown as RawPlay[];
+  } catch (error) {
+    if (!isUnknownGuessesJsonFieldError(error)) throw error;
+    plays = (await prisma.wurpleDailyPlay.findMany({
+      where: {
+        mode,
+        date: { gte: from, lte: to },
+        OR: [{ sessionId: profile.sessionId }, ...(profile.userId ? [{ userId: profile.userId }] : [])],
+      },
+      select: {
+        seed: true,
+        status: true,
+        guessCount: true,
+        updatedAt: true,
+      },
+      orderBy: [{ seed: "asc" }, { updatedAt: "desc" }],
+    })) as unknown as RawPlay[];
+  }
 
   const bestPlayByDay = new Map<string, RawPlay>();
 

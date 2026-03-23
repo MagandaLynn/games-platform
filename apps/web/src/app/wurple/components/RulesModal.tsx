@@ -96,7 +96,7 @@ export default function RulesModal({ open, onClose }: Props) {
               <p className="text-text-muted">
                 Each guess is a hex code like{" "}
                 <span className="font-mono font-semibold text-text">3FA6D0</span>. After
-                you submit, tiles show feedback for each character:
+                you submit, tiles show feedback for each character, and distance shows how close your guess is to the target color overall:
               </p>
 
               <ul className="ml-4 list-disc space-y-1 text-text-muted">
@@ -131,6 +131,17 @@ export default function RulesModal({ open, onClose }: Props) {
                   </span>
                 </li>
               </ul>
+
+              <div className="rounded-xl bg-bg-soft p-2 text-text-muted">
+                <div className="text-xs font-bold uppercase tracking-widest text-text-muted">
+                  Distance
+                </div>
+                <p>
+                  Lower distance means your guess is closer to the hidden color. A distance of
+                  <span className="font-semibold text-text"> 0 </span>
+                  means you found the exact answer.
+                </p>
+              </div>
 
               <p className="text-xs text-text-muted">
                 Same date = same puzzle for everyone (per mode). Come back tomorrow for a new puzzle.
@@ -207,7 +218,8 @@ export default function RulesModal({ open, onClose }: Props) {
                   </div>
                   <p className="text-text-muted">
                     No repeated characters.{" "}
-                    <span className="font-semibold text-text">6 guesses</span> max.
+                    <span className="font-semibold text-text">6 guesses</span> max. Includes tile
+                    and <span className="font-semibold text-text">distance</span> feedback.
                   </p>
                 </div>
 
@@ -216,9 +228,9 @@ export default function RulesModal({ open, onClose }: Props) {
                     Challenge
                   </div>
                   <p className="text-text-muted">
-                    Repeats allowed. No guess limit. Includes{" "}
-                    <span className="font-semibold text-text">Distance</span> feedback
-                    to help you converge.
+                    Repeats allowed. No guess limit. Also includes{" "}
+                    <span className="font-semibold text-text">distance</span> feedback, so you can
+                    refine guesses without a cap.
                   </p>
                 </div>
               </div>

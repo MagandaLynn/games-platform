@@ -101,6 +101,11 @@ function guessArrayLength(value: string | null | undefined) {
   }
 }
 
+function isUnknownGuessesJsonFieldError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("guessesJson") && (message.includes("Unknown field") || message.includes("Unknown argument"));
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -143,7 +148,6 @@ export async function POST(req: Request) {
       if (userId) {
         const existingByUser = await prisma.wurpleDailyPlay.findFirst({
           where: { seed: entry.seed, mode: entry.mode, userId },
-          select: { id: true, status: true, guessCount: true, guessesJson: true },
         } as any);
 
         if (existingByUser) {
@@ -169,10 +173,21 @@ export async function POST(req: Request) {
           }
 
           if (Object.keys(updateData).length > 0) {
-            await prisma.wurpleDailyPlay.update({
-              where: { id: existingByUser.id },
-              data: updateData,
-            } as any);
+            try {
+              await prisma.wurpleDailyPlay.update({
+                where: { id: existingByUser.id },
+                data: updateData,
+              } as any);
+            } catch (error) {
+              if (!isUnknownGuessesJsonFieldError(error)) throw error;
+              const { guessesJson: _ignored, ...fallbackData } = updateData;
+              if (Object.keys(fallbackData).length > 0) {
+                await prisma.wurpleDailyPlay.update({
+                  where: { id: existingByUser.id },
+                  data: fallbackData,
+                } as any);
+              }
+            }
           }
           imported += 1;
           continue;
@@ -181,7 +196,6 @@ export async function POST(req: Request) {
 
       const existingBySession = await prisma.wurpleDailyPlay.findFirst({
         where: { seed: entry.seed, mode: entry.mode, sessionId },
-        select: { id: true, userId: true, status: true, guessCount: true, guessesJson: true },
       } as any);
 
       if (existingBySession) {
@@ -211,30 +225,58 @@ export async function POST(req: Request) {
         }
 
         if (Object.keys(updateData).length > 0) {
-          await prisma.wurpleDailyPlay.update({
-            where: { id: existingBySession.id },
-            data: updateData,
-          } as any);
+          try {
+            await prisma.wurpleDailyPlay.update({
+              where: { id: existingBySession.id },
+              data: updateData,
+            } as any);
+          } catch (error) {
+            if (!isUnknownGuessesJsonFieldError(error)) throw error;
+            const { guessesJson: _ignored, ...fallbackData } = updateData;
+            if (Object.keys(fallbackData).length > 0) {
+              await prisma.wurpleDailyPlay.update({
+                where: { id: existingBySession.id },
+                data: fallbackData,
+              } as any);
+            }
+          }
         }
 
         imported += 1;
         continue;
       }
 
-      await prisma.wurpleDailyPlay.create({
-        data: {
-          seed: entry.seed,
-          date,
-          mode: entry.mode,
-          sessionId,
-          userId,
-          status: entry.status,
-          guessCount: entry.guessCount,
-          guessesJson,
-          won: entry.status === "won",
-          completedAt,
-        },
-      } as any);
+      try {
+        await prisma.wurpleDailyPlay.create({
+          data: {
+            seed: entry.seed,
+            date,
+            mode: entry.mode,
+            sessionId,
+            userId,
+            status: entry.status,
+            guessCount: entry.guessCount,
+            guessesJson,
+            won: entry.status === "won",
+            completedAt,
+          },
+        } as any);
+      } catch (error) {
+        if (!isUnknownGuessesJsonFieldError(error)) throw error;
+        await prisma.wurpleDailyPlay.create({
+          data: {
+            seed: entry.seed,
+            date,
+            mode: entry.mode,
+            sessionId,
+            userId,
+            status: entry.status,
+            guessCount: entry.guessCount,
+            won: entry.status === "won",
+            completedAt,
+          },
+        } as any);
+      }
 
       imported += 1;
     }
