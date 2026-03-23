@@ -55,6 +55,20 @@ export default function HangmanLandingPage() {
             Social & Compare
           </button>
         </Link>
+
+        <Link href="/hangman/archive">
+          <button
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              fontSize: "0.95rem",
+              opacity: 0.8,
+              cursor: "pointer",
+            }}
+          >
+            Browse Daily Archive
+          </button>
+        </Link>
       </div>
     </main>
   );
