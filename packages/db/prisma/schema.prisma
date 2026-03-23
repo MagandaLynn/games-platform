@@ -36,6 +36,7 @@ model HangmanPlay {
   updatedAt DateTime             @updatedAt
   instance  HangmanDailyInstance @relation(fields: [instanceId], references: [id])
 
+  @@unique([instanceId, userId], name: "instance_user")
   @@unique([instanceId, sessionId], name: "instance_session")
   @@index([sessionId])
   @@index([userId])
@@ -160,6 +161,7 @@ model WurpleDailyPlay {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([seed, mode, userId], name: "seed_mode_user")
   @@unique([seed, mode, sessionId], name: "seed_mode_session")
   @@index([mode, date])
   @@index([sessionId, date])
@@ -180,6 +182,7 @@ model SemantleDailyPlay {
   importedAt     DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  @@unique([puzzleNumber, userId], name: "puzzle_user")
   @@unique([puzzleNumber, sessionId], name: "puzzle_session")
   @@index([sessionId, importedAt])
   @@index([userId, importedAt])

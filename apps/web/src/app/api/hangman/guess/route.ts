@@ -1,6 +1,7 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+import { auth } from "@clerk/nextjs/server";
 import { canonicalizeGuessed, toPublicPlay } from "../_shared";
 
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ function normalizeLetter(input: string): string | null {
 
 export async function POST(req: Request) {
   const sessionId = await requireSessionId();
+  const { userId } = await auth();
   const body = await req.json().catch(() => ({}));
 
   const instanceId: string | undefined = body.instanceId;
@@ -35,12 +37,45 @@ export async function POST(req: Request) {
   });
   if (!instance) return Response.json({ error: "Instance not found" }, { status: 404 });
 
-  const play = await prisma.hangmanPlay.upsert({
-    where: { instance_session: { instanceId, sessionId } },
-    update: {},
-    create: { instanceId, sessionId },
+  // Check for existing play using userId first, then sessionId
+  let play = null;
+
+  if (userId) {
+    play = await prisma.hangmanPlay.findFirst({
+      where: { instanceId, userId },
+    });
+    if (play) return finishGuess(play, instance, letter);
+  }
+
+  // Try sessionId-based play
+  const sessionPlay = await prisma.hangmanPlay.findFirst({
+    where: { instanceId, sessionId },
   });
 
+  if (sessionPlay) {
+    if (userId && !sessionPlay.userId) {
+      await prisma.hangmanPlay.update({
+        where: { id: sessionPlay.id },
+        data: { userId },
+      });
+    }
+    play = sessionPlay;
+    return finishGuess(play, instance, letter);
+  }
+
+  // Create new play
+  play = await prisma.hangmanPlay.create({
+    data: { instanceId, sessionId, userId },
+  });
+
+  return finishGuess(play, instance, letter);
+}
+
+async function finishGuess(
+  play: { id: string; guessed: string | null; status: string; wrongGuesses: number },
+  instance: any,
+  letter: string
+) {
   const guessedBefore = canonicalizeGuessed(play.guessed ?? "");
   const alreadyGuessed = guessedBefore.includes(letter);
 
@@ -67,7 +102,7 @@ export async function POST(req: Request) {
     }
 
     return Response.json({
-      instanceId,
+      instanceId: instance.id,
       play: toPublicPlay(current, instance.puzzle.phrase, instance.mode),
     });
   }
@@ -88,7 +123,7 @@ export async function POST(req: Request) {
   });
 
   return Response.json({
-    instanceId,
+    instanceId: instance.id,
     play: toPublicPlay(result, instance.puzzle.phrase, instance.mode),
   });
 }

@@ -1,6 +1,7 @@
 import { prisma } from "@playseed/db";
 import { requireSessionId } from "@/server/session";
 import { games } from "@playseed/game-core";
+import { auth } from "@clerk/nextjs/server";
 import { canonicalizeGuessed, toPublicPlay } from "../_shared";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const sessionId = await requireSessionId();
+    const { userId } = await auth();
     const body = await req.json().catch(() => ({}));
     const instanceId: string | undefined = body.instanceId;
 
@@ -21,27 +23,75 @@ export async function POST(req: Request) {
     });
     if (!instance) return Response.json({ error: "Instance not found" }, { status: 404 });
 
-    // Ensure a play row exists so state always has something backing it
-    const play = await prisma.hangmanPlay.upsert({
-      where: { instance_session: { instanceId, sessionId } },
-      update: {},
-      create: { instanceId, sessionId },
-      select: {
-        id: true,
-        instanceId: true,
-        sessionId: true,
-        userId: true,
-        status: true,
-        wrongGuesses: true,
-        guessed: true,
-        createdAt: true,
-        updatedAt: true,
+    // Try to find existing play by userId first, then sessionId
+    let play = null;
 
-        // ✅ persisted attempt-level fields
-        hintUsed: true,
-        hintUsedAt: true,
-      },
-    });
+    if (userId) {
+      play = await prisma.hangmanPlay.findFirst({
+        where: { instanceId, userId },
+        select: {
+          id: true,
+          instanceId: true,
+          sessionId: true,
+          userId: true,
+          status: true,
+          wrongGuesses: true,
+          guessed: true,
+          createdAt: true,
+          updatedAt: true,
+          hintUsed: true,
+          hintUsedAt: true,
+        },
+      });
+    }
+
+    if (!play) {
+      const sessionPlay = await prisma.hangmanPlay.findFirst({
+        where: { instanceId, sessionId },
+        select: {
+          id: true,
+          instanceId: true,
+          sessionId: true,
+          userId: true,
+          status: true,
+          wrongGuesses: true,
+          guessed: true,
+          createdAt: true,
+          updatedAt: true,
+          hintUsed: true,
+          hintUsedAt: true,
+        },
+      });
+
+      if (sessionPlay) {
+        if (userId && !sessionPlay.userId) {
+          await prisma.hangmanPlay.update({
+            where: { id: sessionPlay.id },
+            data: { userId },
+          });
+        }
+        play = sessionPlay;
+      }
+    }
+
+    if (!play) {
+      play = await prisma.hangmanPlay.create({
+        data: { instanceId, sessionId, userId },
+        select: {
+          id: true,
+          instanceId: true,
+          sessionId: true,
+          userId: true,
+          status: true,
+          wrongGuesses: true,
+          guessed: true,
+          createdAt: true,
+          updatedAt: true,
+          hintUsed: true,
+          hintUsedAt: true,
+        },
+      });
+    }
 
     const guessedStr = canonicalizeGuessed(play.guessed ?? "");
 
